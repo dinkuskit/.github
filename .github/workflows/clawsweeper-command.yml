@@ -23,13 +23,8 @@ on:
         description: User-owned fine-grained PAT with Copilot Requests only
         required: false
 
-concurrency:
-  # Repository-wide serialization makes the contributor daily cap race-free.
-  group: clawsweeper-${{ github.repository_id }}
-  cancel-in-progress: false
-
 jobs:
-  gate:
+  candidate:
     if: >-
       github.event.issue.pull_request != null &&
       github.event.comment.user.login != inputs.clawsweeper_app_bot_login &&
@@ -38,6 +33,38 @@ jobs:
         fromJSON('["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]'),
         github.event.comment.author_association
       )
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      command_candidate: ${{ steps.command.outputs.command_candidate }}
+    steps:
+      - name: Recognize a standalone command candidate
+        id: command
+        env:
+          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          echo "command_candidate=false" >> "$GITHUB_OUTPUT"
+          body_file="$(mktemp)"
+          trap 'rm -f "$body_file"' EXIT
+          printf '%s' "$COMMENT_BODY" | tr '[:upper:]' '[:lower:]' > "$body_file"
+          if grep -qE '^[[:space:]]*@clawsweeper review[[:space:]]*$' "$body_file"; then
+            echo "command_candidate=true" >> "$GITHUB_OUTPUT"
+          elif [ "$AUTHOR_ASSOCIATION" != CONTRIBUTOR ] \
+            && grep -qE '^[[:space:]]*@clawsweeper re-review[[:space:]]*$' "$body_file"; then
+            echo "command_candidate=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  gate:
+    needs: candidate
+    if: needs.candidate.outputs.command_candidate == 'true'
+    # Only command-shaped, trusted, non-bot PR comments enter the admission
+    # lock. GitHub's expanded queue preserves already-pending valid commands.
+    concurrency:
+      group: clawsweeper-admission-${{ github.repository_id }}
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -331,23 +358,6 @@ jobs:
             "$merge_base_sha" "$head_sha" > "$out_dir/pr.diff"
           test -s "$out_dir/pr.diff"
 
-          unreviewable_changes=false
-          if ! tr -d '\000' < "$out_dir/pr.diff" \
-            | cmp -s - "$out_dir/pr.diff"; then
-            unreviewable_changes=true
-          elif git -C "$git_dir" --no-pager diff --no-renames --numstat \
-            "$merge_base_sha" "$head_sha" \
-            | awk '$1 == "-" || $2 == "-" { found=1 } END { exit !found }'; then
-            unreviewable_changes=true
-          elif git -C "$git_dir" --no-pager diff --no-renames --raw \
-            "$merge_base_sha" "$head_sha" \
-            | awk '$1 == ":160000" || $2 == "160000" { found=1 } END { exit !found }'; then
-            unreviewable_changes=true
-          elif grep -qF 'version https://git-lfs.github.com/spec/v1' \
-            "$out_dir/pr.diff"; then
-            unreviewable_changes=true
-          fi
-
           diff_bytes="$(wc -c < "$out_dir/pr.diff" | tr -d ' ')"
           full_diff_sha256="$(sha256sum "$out_dir/pr.diff" | awk '{print $1}')"
           if [ "$diff_bytes" -gt 90000 ]; then
@@ -359,6 +369,137 @@ jobs:
             diff_note='(full diff included)'
             diff_truncated=false
           fi
+
+          is_lfs_pointer() {
+            local bytes last_byte pointer_file
+            pointer_file="$1"
+            bytes="$(wc -c < "$pointer_file" | tr -d ' ')"
+            [ "$bytes" -gt 0 ] && [ "$bytes" -lt 1024 ] || return 1
+            last_byte="$(tail -c 1 "$pointer_file" | od -An -t u1 | tr -d '[:space:]')"
+            [ "$last_byte" = 10 ] || return 1
+            iconv -f UTF-8 -t UTF-8 "$pointer_file" >/dev/null 2>&1 || return 1
+            LC_ALL=C awk '
+              function valid_oid(value, hash) {
+                if (substr(value, 1, 7) != "sha256:") {
+                  return 0
+                }
+                hash = substr(value, 8)
+                return length(hash) == 64 && hash !~ /[^0-9a-f]/
+              }
+              NR == 1 {
+                if ($0 != "version https://git-lfs.github.com/spec/v1" &&
+                    $0 != "version https://hawser.github.com/spec/v1" &&
+                    $0 != "version http://git-media.io/v/2") {
+                  bad = 1
+                  exit
+                }
+                version = 1
+                state = "extensions_or_oid"
+                previous_priority = -1
+                next
+              }
+              {
+                separator = index($0, " ")
+                if (separator < 2) {
+                  bad = 1
+                  exit
+                }
+                key = substr($0, 1, separator - 1)
+                value = substr($0, separator + 1)
+                if (value == "" || substr(value, 1, 1) == " " || $0 ~ /\r/) {
+                  bad = 1
+                  exit
+                }
+
+                if (state == "extensions_or_oid" &&
+                    key ~ /^ext-[0-9]-[A-Za-z0-9_]+$/) {
+                  priority = substr(key, 5, 1) + 0
+                  if (priority <= previous_priority || !valid_oid(value)) {
+                    bad = 1
+                    exit
+                  }
+                  previous_priority = priority
+                  next
+                }
+
+                if (state == "extensions_or_oid" && key == "oid") {
+                  if (!valid_oid(value)) {
+                    bad = 1
+                    exit
+                  }
+                  oid = 1
+                  state = "size"
+                  next
+                }
+
+                if (state == "size" && key == "size") {
+                  if (value !~ /^(0|[1-9][0-9]*)$/) {
+                    bad = 1
+                    exit
+                  }
+                  size = 1
+                  state = "done"
+                  next
+                }
+
+                bad = 1
+                exit
+              }
+              END {
+                if (bad || !version || !oid || !size || state != "done") {
+                  exit 1
+                }
+              }
+            ' "$pointer_file"
+          }
+
+          unreviewable_changes=false
+          if [ "$diff_truncated" = false ]; then
+            numstat_file="$RUNNER_TEMP/clawsweeper-numstat"
+            raw_file="$RUNNER_TEMP/clawsweeper-raw-diff"
+            changed_paths_file="$RUNNER_TEMP/clawsweeper-changed-paths"
+            git -C "$git_dir" --no-pager diff --no-renames --numstat \
+              "$merge_base_sha" "$head_sha" > "$numstat_file"
+            git -C "$git_dir" --no-pager diff --no-renames --raw \
+              "$merge_base_sha" "$head_sha" > "$raw_file"
+            git -C "$git_dir" --no-pager diff --no-renames --name-only -z \
+              "$merge_base_sha" "$head_sha" > "$changed_paths_file"
+            changed_path_count="$(LC_ALL=C tr -cd '\000' \
+              < "$changed_paths_file" | wc -c | tr -d ' ')"
+
+            if ! tr -d '\000' < "$out_dir/pr.diff" \
+              | cmp -s - "$out_dir/pr.diff"; then
+              unreviewable_changes=true
+            elif awk '$1 == "-" || $2 == "-" { found=1 } END { exit !found }' \
+              "$numstat_file"; then
+              unreviewable_changes=true
+            elif awk '$1 == ":160000" || $2 == "160000" { found=1 } END { exit !found }' \
+              "$raw_file"; then
+              unreviewable_changes=true
+            elif [ "$changed_path_count" -gt 250 ]; then
+              unreviewable_changes=true
+            else
+              pointer_candidate="$RUNNER_TEMP/clawsweeper-lfs-pointer"
+              while IFS= read -r -d '' changed_path; do
+                for revision in "$merge_base_sha" "$head_sha"; do
+                  object="${revision}:${changed_path}"
+                  if ! object_bytes="$(git -C "$git_dir" cat-file -s \
+                    "$object" 2>/dev/null)"; then
+                    continue
+                  fi
+                  if [ "$object_bytes" -lt 1024 ]; then
+                    git -C "$git_dir" cat-file blob "$object" > "$pointer_candidate"
+                    if is_lfs_pointer "$pointer_candidate"; then
+                      unreviewable_changes=true
+                      break 2
+                    fi
+                  fi
+                done
+              done < "$changed_paths_file"
+              rm -f "$pointer_candidate"
+            fi
+          fi
+
           rm -f "$out_dir/pr.diff"
           diff_sha256="$(sha256sum "$out_dir/prompt.diff" | awk '{print $1}')"
 
@@ -402,7 +543,7 @@ jobs:
             echo 'Do not include @-mentions, secrets, tokens, or environment data.'
             echo 'Cite paths and concrete concerns when possible; do not invent blockers.'
             if [ "$diff_truncated" = true ] || [ "$unreviewable_changes" = true ]; then
-              echo 'The diff is truncated or contains unreviewable binary/LFS/submodule changes. You must not return a clean verdict; return findings for concrete issues or blocked if the visible material is insufficient.'
+              echo 'The diff is truncated, changes more than 250 paths, or contains unreviewable binary/LFS/submodule changes. You must not return a clean verdict; return findings for concrete issues or blocked if the visible material is insufficient.'
             fi
             echo 'The final non-empty line must be exactly one of:'
             echo 'clawsweeper-verdict: clean'
@@ -487,6 +628,9 @@ jobs:
   review:
     needs: gate
     if: needs.gate.result == 'success' && needs.gate.outputs.review_requested == 'true'
+    concurrency:
+      group: clawsweeper-model-${{ github.repository_id }}
+      queue: max
     runs-on: ubuntu-latest
     timeout-minutes: 35
     permissions: {}
@@ -1086,7 +1230,7 @@ jobs:
             echo "_ClawSweeper path B (GitHub-hosted · Copilot \`$MODEL\` · base/head \`$PREPARED_BASE...$PREPARED_HEAD\`). Advisory only — not a merge gate._"
             if [ "$PREPARED_DIFF_TRUNCATED" = true ] \
               || [ "$PREPARED_UNREVIEWABLE_CHANGES" = true ]; then
-              echo "_Input note: the exact local diff was $PREPARED_FULL_DIFF_BYTES bytes and was truncated or contains binary/LFS/submodule changes, so a clean verdict was prohibited._"
+              echo "_Input note: the exact local diff was $PREPARED_FULL_DIFF_BYTES bytes and was truncated, changed more than 250 paths, or contains binary/LFS/submodule changes, so a clean verdict was prohibited._"
             fi
             if [ "$REVIEW_JOB_RESULT" != 'success' ]; then
               echo "_Model job result: \`$REVIEW_JOB_RESULT\`. See [Actions run #${GITHUB_RUN_ID}](https://github.com/$REPO/actions/runs/${GITHUB_RUN_ID})._"

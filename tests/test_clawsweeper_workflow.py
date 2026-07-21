@@ -143,7 +143,35 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
+        cls.candidate_script = step_script(
+            "Recognize a standalone command candidate"
+        )
         cls.script = authorization_script()
+
+    def run_candidate_case(
+        self, body: str, *, association: str = "OWNER"
+    ) -> bool:
+        with tempfile.TemporaryDirectory() as raw_temp:
+            output = Path(raw_temp) / "github-output"
+            env = os.environ.copy()
+            env.update(
+                {
+                    "AUTHOR_ASSOCIATION": association,
+                    "COMMENT_BODY": body,
+                    "GITHUB_OUTPUT": str(output),
+                }
+            )
+            result = subprocess.run(
+                ["bash", "-c", self.candidate_script],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            values = output.read_text(encoding="utf-8").splitlines()
+            return values[-1] == "command_candidate=true"
 
     def run_case(
         self,
@@ -364,7 +392,7 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             self.assertEqual(resolve_workflow(tests_dir), deployed)
 
     def test_path_b_stays_github_hosted_only(self) -> None:
-        self.assertEqual(self.workflow.count("runs-on: ubuntu-latest"), 3)
+        self.assertEqual(self.workflow.count("runs-on: ubuntu-latest"), 4)
         # No self-hosted runner labels (comment text may still say "no Spark self-hosted").
         self.assertNotIn("runs-on: [self-hosted", self.workflow)
         self.assertNotIn("spark-2, clawsweeper-dinkuskit", self.workflow)
@@ -493,6 +521,224 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         self.assertIn('[ "$prompt_bytes" -gt 110000 ]', prepare)
         self.assertNotIn('head -c 160000', prepare)
 
+    def test_only_eligible_gate_jobs_enter_expanded_admission_queue(self) -> None:
+        workflow_scope = self.workflow.split("\njobs:\n", 1)[0]
+        candidate = named_job("candidate")
+        gate = named_job("gate")
+        self.assertNotIn("\nconcurrency:", workflow_scope)
+        self.assertIn("permissions: {}", candidate)
+        self.assertIn("github.event.sender.type != 'Bot'", candidate)
+        self.assertIn(
+            'fromJSON(\'["OWNER","MEMBER","COLLABORATOR","CONTRIBUTOR"]\')',
+            candidate,
+        )
+        self.assertIn("@clawsweeper review[[:space:]]*", candidate)
+        self.assertIn("@clawsweeper re-review[[:space:]]*", candidate)
+        self.assertIn('[ "$AUTHOR_ASSOCIATION" != CONTRIBUTOR ]', candidate)
+        self.assertNotIn("concurrency:", candidate)
+        self.assertIn("needs: candidate", gate)
+        self.assertIn(
+            "if: needs.candidate.outputs.command_candidate == 'true'", gate
+        )
+        self.assertIn("concurrency:", gate)
+        self.assertIn("group: clawsweeper-admission-${{ github.repository_id }}", gate)
+        self.assertIn("queue: max", gate)
+        self.assertNotIn("cancel-in-progress: true", gate)
+
+    def test_candidate_matches_static_authorization_contract(self) -> None:
+        cases = (
+            ("@clawsweeper review", "OWNER", True),
+            ("  @CLAWSWEEPER REVIEW  ", "OWNER", True),
+            ("context\n@ClawSweeper Review\nproof", "OWNER", True),
+            ("@clawsweeper re-review", "OWNER", True),
+            ("@clawsweeper review", "CONTRIBUTOR", True),
+            ("@clawsweeper re-review", "CONTRIBUTOR", False),
+            ("@clawsweeper\treview", "OWNER", False),
+            ("@clawsweeper  review", "OWNER", False),
+            ("please @clawsweeper review", "OWNER", False),
+        )
+        for body, association, expected in cases:
+            with self.subTest(body=body, association=association):
+                self.assertEqual(
+                    self.run_candidate_case(body, association=association),
+                    expected,
+                )
+
+    def test_lfs_detection_inspects_changed_blobs_structurally(self) -> None:
+        prepare = step_script("Prepare immutable review request")
+        match = re.search(r"(?ms)^is_lfs_pointer\(\) \{\n.*?^\}", prepare)
+        self.assertIsNotNone(match)
+        assert match is not None
+        function = match.group(0)
+
+        self.assertIn('cat-file -s', prepare)
+        self.assertIn('cat-file blob "$object" > "$pointer_candidate"', prepare)
+        self.assertIn('is_lfs_pointer "$pointer_candidate"', prepare)
+        self.assertIn('--name-only -z', prepare)
+        self.assertIn('> "$changed_paths_file"', prepare)
+        self.assertIn('[ "$changed_path_count" -gt 250 ]', prepare)
+        self.assertIn('[ "$object_bytes" -lt 1024 ]', prepare)
+        self.assertIn('iconv -f UTF-8 -t UTF-8', prepare)
+        self.assertIn('[ "$last_byte" = 10 ]', prepare)
+        self.assertLess(
+            prepare.index('diff_truncated=true'),
+            prepare.index('changed_paths_file='),
+        )
+        self.assertNotIn(
+            "grep -qF 'version https://git-lfs.github.com/spec/v1'", prepare
+        )
+
+        pointer = "\n".join(
+            (
+                "version https://git-lfs.github.com/spec/v1",
+                f"oid sha256:{'a' * 64}",
+                "size 123",
+                "",
+            )
+        ).encode()
+
+        def extended_pointer(size: int) -> bytes:
+            prefix = "version https://git-lfs.github.com/spec/v1\next-0-"
+            suffix = (
+                f" sha256:{'c' * 64}\n"
+                f"oid sha256:{'b' * 64}\n"
+                "size 123\n"
+            )
+            padding = size - len((prefix + suffix).encode())
+            self.assertGreaterEqual(padding, 1)
+            result = (prefix + ("x" * padding) + suffix).encode()
+            self.assertEqual(len(result), size)
+            return result
+
+        cases = (
+            (pointer, True),
+            (
+                pointer.replace(
+                    b"https://git-lfs.github.com/spec/v1",
+                    b"https://hawser.github.com/spec/v1",
+                    1,
+                ),
+                True,
+            ),
+            (
+                pointer.replace(
+                    b"https://git-lfs.github.com/spec/v1",
+                    b"http://git-media.io/v/2",
+                    1,
+                ),
+                True,
+            ),
+            (
+                "Documentation mentions version "
+                "https://git-lfs.github.com/spec/v1.\n".encode(),
+                False,
+            ),
+            (pointer + b"ordinary source follows\n", False),
+            (
+                "version https://git-lfs.github.com/spec/v1\n"
+                "oid sha256:not-a-real-object\n"
+                "size 123\n".encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    "size 123\n"
+                    f"oid sha256:{'a' * 64}\n"
+                ).encode(),
+                False,
+            ),
+            (
+                pointer + b"wat wat\n",
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-bad-name sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-10-foo sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-foo sha256:{'c' * 64}\n"
+                    f"ext-0-bar sha256:{'d' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    "ext-0-foo sha256:not-a-real-object\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    f"oid sha256:{'b' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"oid\tsha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (pointer.rstrip(b"\n"), False),
+            (extended_pointer(1023), True),
+            (extended_pointer(1024), False),
+            (
+                b"version https://git-lfs.github.com/spec/v1\n"
+                b"ext-a \xff\n"
+                + f"oid sha256:{'a' * 64}\nsize 123\n".encode(),
+                False,
+            ),
+        )
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            for index, (contents, expected) in enumerate(cases):
+                candidate = root / f"case-{index}"
+                candidate.write_bytes(contents)
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        f'{function}\nis_lfs_pointer "$1"',
+                        "bash",
+                        str(candidate),
+                    ],
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode == 0,
+                    expected,
+                    result.stderr or result.stdout,
+                )
+
     def test_pr_diff_uses_merge_base_not_diverged_base_tip(self) -> None:
         with tempfile.TemporaryDirectory() as raw_temp:
             repo = Path(raw_temp)
@@ -595,11 +841,13 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             self.workflow.index("      - name: Persist review admission before model access"),
             self.workflow.index("  review:"),
         )
+        review = named_job("review")
         self.assertIn(
-            "group: clawsweeper-${{ github.repository_id }}", self.workflow
+            "group: clawsweeper-model-${{ github.repository_id }}", review
         )
+        self.assertIn("queue: max", review)
         self.assertNotIn(
-            "group: clawsweeper-${{ github.repository_id }}-${{ github.event.issue.number }}",
+            "group: clawsweeper-model-${{ github.repository_id }}-${{ github.event.issue.number }}",
             self.workflow,
         )
         self.assertIn(

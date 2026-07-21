@@ -40,8 +40,10 @@ have reached a model verdict.
 2. The gate fetches those exact objects without checkout, generates the complete
    pull-request diff locally from merge-base to head, and records the merge
    base plus prompt/full-diff size and digests. If the 90 KB model input is
-   truncated or contains binary/LFS/submodule changes, a `clean` verdict is
-   deterministically prohibited.
+   truncated, changes more than 250 paths, or contains binary/LFS/submodule
+   changes, a `clean` verdict is deterministically prohibited. LFS detection
+   parses small changed blobs as canonical pointer files; a header mentioned
+   in ordinary source or documentation does not trip the guard.
 3. An isolated `ubuntu-latest` model job runs version-pinned Copilot CLI with
    **`gpt-5.6-terra`** on exact Node.js `22.23.1`. It receives only the Copilot
    Requests PAT: no repository token, checkout, shell/file tools, built-in MCP,
@@ -119,14 +121,20 @@ authority. The private key and short-lived App tokens appear only in fixed
 gate/publisher steps and never enter the model job. Spark runner registration
 is **not** required for path B.
 
-Primary review requests are deduplicated per base/head pair and serialized
-repository-wide. Established contributors receive one hosted run per PR and
-share a hard allowance of five contributor-triggered reviews per repository per
-UTC day; maintainers may request one re-review after a bot-authored canonical
-admission for the same base/head pair, including recovery from a pending, stale,
-failed, or blocked attempt. The CLI receives `--max-ai-credits=50`; this is a soft
-session guard and an in-flight response can exceed it, so the hard controls are
-the run-admission limits rather than a currency guarantee. Missing or malformed
+Primary review requests are deduplicated per base/head pair. A permissionless
+preflight admits only standalone command-shaped comments from trusted, non-bot
+PR participants to the repository-wide lock. The locked gate then re-fetches
+and authoritatively validates the source comment before reserving quota;
+App-authored, untrusted, and non-command comments never enter the lock.
+Established contributors receive one hosted run per PR and share a hard
+allowance of five contributor-triggered reviews per repository per UTC day;
+maintainers may request one re-review after a bot-authored canonical admission
+for the same base/head pair, including recovery from a pending, stale, failed,
+or blocked attempt. Admitted model jobs use a separate expanded repository-wide
+queue so only one spends Copilot credits at a time. The CLI receives
+`--max-ai-credits=50`; this is a soft session guard and an in-flight response
+can exceed it, so the hard controls are the run-admission limits rather than a
+currency guarantee. Missing or malformed
 artifacts produce a deterministic blocked advisory rather than silently
 skipping publication.
 Failed, stale, and blocked contributor admissions consume the allowance;
