@@ -1,0 +1,119 @@
+name: ClawSweeper command (reusable)
+
+# Shared by the DinkusKit product repositories. The cheap authorization job
+# runs on a GitHub-hosted runner. Only an accepted trusted-author command can
+# schedule the narrowly labeled Spark-2 runner.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  authorize:
+    if: >-
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.login != 'saari-clawsweeper[bot]' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-latest
+    outputs:
+      review_requested: ${{ steps.gate.outputs.review_requested }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.issue.number }}
+      REPO: ${{ github.repository }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+    steps:
+      - name: Validate review request
+        id: gate
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          set -euo pipefail
+          echo "review_requested=false" >> "$GITHUB_OUTPUT"
+          BODY_FILE="$(mktemp)"
+          printf '%s\n' "$COMMENT_BODY" | tr '[:upper:]' '[:lower:]' > "$BODY_FILE"
+
+          if grep -qE '^[[:space:]]*@clawsweeper review[[:space:]]*$' "$BODY_FILE"; then
+            echo "Review command accepted."
+            echo "review_requested=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if grep -qE '^[[:space:]]*@clawsweeper re-review[[:space:]]*$' "$BODY_FILE"; then
+            COMMENTS_FILE="$(mktemp)"
+            gh api "repos/$REPO/issues/$PR/comments" --paginate \
+              --jq '.[] | select(.user.login == "saari-clawsweeper[bot]" and .user.type == "Bot") | .body' > "$COMMENTS_FILE"
+            if grep -qF 'clawsweeper-verdict:' "$COMMENTS_FILE"; then
+              echo "Prior ClawSweeper verdict found; re-review accepted."
+              echo "review_requested=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "No prior bot-authored ClawSweeper verdict; re-review skipped."
+            fi
+            exit 0
+          fi
+
+          echo "No standalone ClawSweeper command; skipped."
+
+      - name: Acknowledge (eyes)
+        if: steps.gate.outputs.review_requested == 'true'
+        run: |
+          gh api -X POST \
+            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+            -f content=eyes >/dev/null || true
+
+  review:
+    needs: authorize
+    if: needs.authorize.outputs.review_requested == 'true'
+    runs-on: [self-hosted, spark-2, clawsweeper-dinkuskit]
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.issue.number }}
+      REPO: ${{ github.repository }}
+      COMMENT_ID: ${{ github.event.comment.id }}
+      CLAWSWEEPER_RECORDS_LOCK_TIMEOUT: "6000"
+      CLAWSWEEPER_COMMAND_LOCK_TIMEOUT: "6000"
+    steps:
+      - name: ClawSweeper review
+        run: |
+          set -euo pipefail
+          TOOL_DIR="$HOME/.cache/clawsweeper/targets/spark-dgx"
+          [ -e "$TOOL_DIR/.git" ] || {
+            echo "::error::Spark ClawSweeper tooling checkout is missing"
+            exit 1
+          }
+
+          ORIGIN_URL="$(git -C "$TOOL_DIR" remote get-url origin 2>/dev/null || true)"
+          case "$ORIGIN_URL" in
+            https://github.com/saari-co/spark-dgx|https://github.com/saari-co/spark-dgx.git|git@github.com:saari-co/spark-dgx.git) ;;
+            *) echo "::error::Spark tooling checkout has the wrong origin"; exit 1 ;;
+          esac
+
+          LOCK_FILE="$HOME/.cache/clawsweeper/clawsweeper-command.lock"
+          mkdir -p "$(dirname "$LOCK_FILE")"
+          (
+            flock -w "$CLAWSWEEPER_COMMAND_LOCK_TIMEOUT" 9
+            git -C "$TOOL_DIR" fetch -q origin \
+              "+refs/heads/main:refs/remotes/origin/main"
+            git -C "$TOOL_DIR" reset -q --hard origin/main
+            CLAWSWEEPER_COMMAND_LOCK_HELD=1 \
+              "$TOOL_DIR/lanes/clawsweeper-review/command-target.sh" \
+                --target-repo "$REPO" \
+                --item-number "$PR"
+          ) 9>"$LOCK_FILE"
+
+      - name: Acknowledge done (rocket)
+        if: success()
+        run: |
+          gh api -X POST \
+            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
+            -f content=rocket >/dev/null || true
+
+      - name: Report failure
+        if: failure() || cancelled()
+        run: |
+          gh pr comment "$PR" --repo "$REPO" \
+            --body "ClawSweeper review failed for this PR (run [#${GITHUB_RUN_ID}](https://github.com/$REPO/actions/runs/${GITHUB_RUN_ID})). Check the Spark-2 command-lane proof." || true
