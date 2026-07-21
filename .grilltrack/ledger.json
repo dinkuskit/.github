@@ -1,0 +1,117 @@
+{
+  "closeout": null,
+  "created_at": "2026-07-21T18:44:07+00:00",
+  "current_focus": {
+    "cadence": "sequential",
+    "confirmed": false,
+    "domain": "Logo integration and hero treatment",
+    "started_at": "2026-07-21T18:58:38+00:00",
+    "status": "inspected",
+    "summary": "Record the operator decision to defer logo integration until the new Dinkus source asset is available."
+  },
+  "decisions": [
+    {
+      "baseline_ref": "github-org:dinkuskit@2026-07-21",
+      "candidate_refs": [
+        ".grilltrack/work/profile-direction-picker.json#section-manual"
+      ],
+      "choice": "Section manual",
+      "context_ref": "profile/README.md@82c034649d7800c0054dbd86f486410ca8ca1d78",
+      "created_at": "2026-07-21T18:50:58+00:00",
+      "deferred_reason": null,
+      "delivery_ref": null,
+      "dependencies": [],
+      "domain": "GitHub organization profile composition and visual language",
+      "history": [
+        {
+          "at": "2026-07-21T18:50:58+00:00",
+          "choice": "Section manual",
+          "from": "proposed",
+          "implementation_ref": null,
+          "note": "user accepted the scoped decision",
+          "to": "locked",
+          "verification_ref": null
+        },
+        {
+          "at": "2026-07-21T18:55:11+00:00",
+          "choice": "Section manual",
+          "from": "locked",
+          "implementation_ref": null,
+          "note": "bounded implementation recorded",
+          "to": "implemented",
+          "verification_ref": null
+        },
+        {
+          "at": "2026-07-21T18:55:11+00:00",
+          "choice": "Section manual",
+          "from": "implemented",
+          "implementation_ref": "file:profile/README.md",
+          "note": "verification recorded in cumulative context",
+          "to": "verified",
+          "verification_ref": null
+        }
+      ],
+      "id": "profile-composition-001",
+      "implementation_ref": "file:profile/README.md",
+      "question": "Which composition should define the DinkusKit organization profile?",
+      "rationale": "User selected candidate 2; it centers the distinctive dinkus definition and uses emoji-led chapters in a personal editorial structure.",
+      "review_ref": null,
+      "status": "verified",
+      "superseded_by": null,
+      "updated_at": "2026-07-21T18:55:11+00:00",
+      "verification_ref": "proof:.grilltrack/proof/profile-composition-001/PROOF.md"
+    },
+    {
+      "baseline_ref": "file:profile/README.md",
+      "candidate_refs": [
+        "none:source-asset-unavailable"
+      ],
+      "choice": "Defer until the source asset is available",
+      "context_ref": "github:saari-co/smoky-brand-assets/pulls@2026-07-21",
+      "created_at": "2026-07-21T18:58:38+00:00",
+      "deferred_reason": "New Dinkus logo source asset is not yet present in the canonical asset repository or connected Drive; retain the verified three-star opener and revisit when the asset is cataloged.",
+      "delivery_ref": null,
+      "dependencies": [
+        "profile-composition-001"
+      ],
+      "domain": "Logo integration and hero treatment",
+      "history": [
+        {
+          "at": "2026-07-21T18:58:38+00:00",
+          "choice": "Defer until the source asset is available",
+          "from": "proposed",
+          "implementation_ref": null,
+          "note": "New Dinkus logo source asset is not yet present in the canonical asset repository or connected Drive; retain the verified three-star opener and revisit when the asset is cataloged.",
+          "to": "deferred",
+          "verification_ref": null
+        }
+      ],
+      "id": "logo-treatment-002",
+      "implementation_ref": null,
+      "question": "Should the new Dinkus logo be integrated into the profile hero now?",
+      "rationale": "The asset is absent from all smoky-brand-assets PRs, remote branches, local worktrees, and connected Drive search results; the user explicitly chose to defer it.",
+      "review_ref": null,
+      "status": "deferred",
+      "superseded_by": null,
+      "updated_at": "2026-07-21T18:58:38+00:00",
+      "verification_ref": null
+    }
+  ],
+  "last_activation": {
+    "at": "2026-07-21T18:44:07+00:00",
+    "mechanism": "$grilltrack"
+  },
+  "recommendation": {
+    "alternatives": [
+      "Emoji density and repository scanning rhythm"
+    ],
+    "reason": "Logo integration is explicitly deferred; the next highest-leverage unresolved domain is making the accepted Section-manual copy unmistakably DinkusKit.",
+    "recommended": "Copy voice and personality",
+    "recorded_at": "2026-07-21T18:58:38+00:00"
+  },
+  "schema_version": "grilltrack/v0.1",
+  "status": "active",
+  "title": "DinkusKit GitHub org makeover",
+  "track_id": "gt-20260721184407-a01750",
+  "updated_at": "2026-07-21T18:58:38+00:00"
+}
