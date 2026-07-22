@@ -52,8 +52,7 @@ jobs:
           printf '%s' "$COMMENT_BODY" | tr '[:upper:]' '[:lower:]' > "$body_file"
           if grep -qE '^[[:space:]]*@clawsweeper review[[:space:]]*$' "$body_file"; then
             echo "command_candidate=true" >> "$GITHUB_OUTPUT"
-          elif [ "$AUTHOR_ASSOCIATION" != CONTRIBUTOR ] \
-            && grep -qE '^[[:space:]]*@clawsweeper re-review[[:space:]]*$' "$body_file"; then
+          elif grep -qE '^[[:space:]]*@clawsweeper re-review[[:space:]]*$' "$body_file"; then
             echo "command_candidate=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -191,6 +190,16 @@ jobs:
           # associations must be trusted, but a trusted-to-trusted membership
           # label transition is not itself an identity change.
           AUTHOR_ASSOCIATION="$source_comment_association"
+          if [ "$AUTHOR_ASSOCIATION" = 'CONTRIBUTOR' ]; then
+            repository_permission="$(
+              gh api "repos/$REPO/collaborators/$source_comment_author/permission" \
+                --jq '.permission' 2>/dev/null \
+                || printf '%s\n' none
+            )"
+            case "$repository_permission" in
+              admin|write) AUTHOR_ASSOCIATION='COLLABORATOR' ;;
+            esac
+          fi
           tr '[:upper:]' '[:lower:]' < "$source_body_file" > "$body_file"
 
           command_kind=""
@@ -344,7 +353,6 @@ jobs:
           pr_json="$(gh api "repos/$REPO/pulls/$PR")"
           current_head="$(printf '%s' "$pr_json" | jq -r '.head.sha')"
           current_base="$(printf '%s' "$pr_json" | jq -r '.base.sha')"
-          base_ref="$(printf '%s' "$pr_json" | jq -r '.base.ref')"
           test -n "$AUTHORIZED_HEAD"
           test -n "$AUTHORIZED_BASE"
           if [ "$current_head" != "$AUTHORIZED_HEAD" ] \
@@ -366,7 +374,10 @@ jobs:
           test "$(printf '%s' "$source_comment" | jq -r '.id')" = "$SOURCE_COMMENT_ID"
           test "$(printf '%s' "$source_comment" | jq -r '.user.login')" = "$SOURCE_COMMENT_AUTHOR"
           test "$(printf '%s' "$source_comment" | jq -r '.user.type')" != 'Bot'
-          test "$(printf '%s' "$source_comment" | jq -r '.author_association')" = "$REQUESTER_ASSOCIATION"
+          case "$(printf '%s' "$source_comment" | jq -r '.author_association')" in
+            OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR) ;;
+            *) exit 1 ;;
+          esac
           test "$(printf '%s' "$source_comment" | jq -r '.issue_url')" = "https://api.github.com/repos/$REPO/issues/$PR"
           test "$(printf '%s' "$source_comment" | jq -r '.updated_at')" = "$SOURCE_COMMENT_UPDATED_AT"
           test "$current_source_body_sha" = "$SOURCE_COMMENT_BODY_SHA"
@@ -384,7 +395,7 @@ jobs:
           git -C "$git_dir" config --local core.attributesFile /dev/null
           git -C "$git_dir" remote add origin "https://github.com/$REPO.git"
           git -C "$git_dir" fetch -q --no-tags origin \
-            "+refs/heads/$base_ref:refs/remotes/origin/clawsweeper-base" \
+            "+$base_sha:refs/remotes/origin/clawsweeper-base" \
             "+refs/pull/$PR/head:refs/remotes/origin/clawsweeper-head"
           fetched_base="$(git -C "$git_dir" rev-parse refs/remotes/origin/clawsweeper-base)"
           test "$fetched_base" = "$base_sha"
@@ -1163,7 +1174,10 @@ jobs:
             [ "$(printf '%s' "$live_source" | jq -r '.id')" = "$SOURCE_COMMENT_ID" ] || return 1
             [ "$(printf '%s' "$live_source" | jq -r '.user.login')" = "$SOURCE_COMMENT_AUTHOR" ] || return 1
             [ "$(printf '%s' "$live_source" | jq -r '.user.type')" != 'Bot' ] || return 1
-            [ "$(printf '%s' "$live_source" | jq -r '.author_association')" = "$REQUESTER_ASSOCIATION" ] || return 1
+            case "$(printf '%s' "$live_source" | jq -r '.author_association')" in
+              OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR) ;;
+              *) return 1 ;;
+            esac
             [ "$(printf '%s' "$live_source" | jq -r '.issue_url')" = "https://api.github.com/repos/$REPO/issues/$PR" ] || return 1
             [ "$(printf '%s' "$live_source" | jq -r '.updated_at')" = "$SOURCE_COMMENT_UPDATED_AT" ] || return 1
             [ "$body_sha256" = "$SOURCE_COMMENT_BODY_SHA" ] || return 1

@@ -185,6 +185,8 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         live_body: str | None = None,
         live_association: str | None = None,
         live_updated_at: str | None = None,
+        repository_permission: str = "none",
+        repository_permission_lookup_fails: bool = False,
     ) -> bool:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
@@ -199,6 +201,11 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                       printf '%s\\n' "$MOCK_SOURCE_COMMENT"
                     elif [[ "$*" == *"pulls/7"* ]]; then
                       printf '%s\\n' '{"head":{"sha":"abc123"},"base":{"sha":"base123"}}'
+                    elif [[ "$*" == *"collaborators/alice/permission"* ]]; then
+                      if [ "$MOCK_REPOSITORY_PERMISSION_LOOKUP_FAILS" = true ]; then
+                        exit 1
+                      fi
+                      printf '%s\\n' "$MOCK_REPOSITORY_PERMISSION"
                     elif [[ "$*" == *"issues/7/comments"* ]]; then
                       printf '%s\\n' "$MOCK_PR_COMMENTS"
                     elif [[ "$*" == *"issues/comments"* ]]; then
@@ -286,6 +293,10 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                     "MODEL": "gpt-5.6-terra",
                     "MOCK_PR_COMMENTS": json.dumps(pr_comments),
                     "MOCK_REPO_COMMENTS": json.dumps(repo_comments),
+                    "MOCK_REPOSITORY_PERMISSION": repository_permission,
+                    "MOCK_REPOSITORY_PERMISSION_LOOKUP_FAILS": str(
+                        repository_permission_lookup_fails
+                    ).lower(),
                     "MOCK_SOURCE_COMMENT": json.dumps(source),
                     "PATH": f"{mock_bin}{os.pathsep}{env['PATH']}",
                     "PR": "7",
@@ -383,6 +394,39 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                 prior_same_pair=1,
             )
         )
+
+    def test_private_write_collaborator_can_request_rereview(self) -> None:
+        for permission in ("write", "admin"):
+            with self.subTest(permission=permission):
+                self.assertTrue(
+                    self.run_case(
+                        "@clawsweeper re-review",
+                        association="CONTRIBUTOR",
+                        repository_permission=permission,
+                        prior_same_pair=1,
+                    )
+                )
+
+        self.assertFalse(
+            self.run_case(
+                "@clawsweeper re-review",
+                association="CONTRIBUTOR",
+                repository_permission="read",
+                prior_same_pair=1,
+            )
+        )
+        self.assertFalse(
+            self.run_case(
+                "@clawsweeper re-review",
+                association="CONTRIBUTOR",
+                repository_permission="admin",
+                repository_permission_lookup_fails=True,
+                prior_same_pair=1,
+            )
+        )
+        command = named_step("Validate standalone command")
+        self.assertIn("collaborators/$source_comment_author/permission", command)
+        self.assertIn("admin|write", command)
 
     def test_quota_markers_are_read_only_from_comment_first_lines(self) -> None:
         command = named_step("Validate standalone command")
@@ -504,7 +548,6 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         self.assertIn("GH_TOKEN: ${{ steps.app_token.outputs.token }}", publish)
         self.assertNotIn("COPILOT_GITHUB_TOKEN", publish)
         self.assertNotIn('> "$out_dir/pr.diff" || true', prepare)
-        self.assertIn('refs/heads/$base_ref:refs/remotes/origin/clawsweeper-base', prepare)
         self.assertIn('refs/pull/$PR/head:refs/remotes/origin/clawsweeper-head', prepare)
         self.assertIn('merge-base "$base_sha" "$head_sha"', prepare)
         self.assertIn('"$merge_base_sha" "$head_sha"', prepare)
@@ -546,6 +589,13 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         self.assertLess(stale_compare, comment)
         self.assertIn('post_pr="$(gh api', publish)
         self.assertIn('gh api -X PATCH', publish)
+
+    def test_prepare_fetches_authorized_base_sha_not_moving_branch(self) -> None:
+        prepare = named_step("Prepare immutable review request")
+
+        self.assertIn('+$base_sha:refs/remotes/origin/clawsweeper-base', prepare)
+        self.assertNotIn('refs/heads/$base_ref', prepare)
+        self.assertNotIn('base_ref=', prepare)
 
     def test_model_output_is_bounded_and_contract_checked(self) -> None:
         model_step = named_step("Run credential-isolated Copilot review")
@@ -595,7 +645,6 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         )
         self.assertIn("@clawsweeper review[[:space:]]*", candidate)
         self.assertIn("@clawsweeper re-review[[:space:]]*", candidate)
-        self.assertIn('[ "$AUTHOR_ASSOCIATION" != CONTRIBUTOR ]', candidate)
         self.assertNotIn("concurrency:", candidate)
         self.assertIn("needs: candidate", gate)
         self.assertIn(
@@ -613,7 +662,7 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             ("context\n@ClawSweeper Review\nproof", "OWNER", True),
             ("@clawsweeper re-review", "OWNER", True),
             ("@clawsweeper review", "CONTRIBUTOR", True),
-            ("@clawsweeper re-review", "CONTRIBUTOR", False),
+            ("@clawsweeper re-review", "CONTRIBUTOR", True),
             ("@clawsweeper\treview", "OWNER", False),
             ("@clawsweeper  review", "OWNER", False),
             ("please @clawsweeper review", "OWNER", False),
