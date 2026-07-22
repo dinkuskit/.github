@@ -27,6 +27,21 @@ Date: 2026-07-21 America/New_York
   invalid reaction value cannot create repository state. Token and private-key
   values were not printed or persisted.
 
+After the App and its installation were changed to Pull requests write with no
+Issues access:
+
+- GitHub's public App metadata reported only mandatory `metadata: read` and
+  `pull_requests: write`, updated at `2026-07-22T11:16:18Z`.
+- The old issues-write token mint failed, confirming the installation dropped
+  that permission.
+- Final non-mutating run
+  [29915267982](https://github.com/dinkuskit/blocks/actions/runs/29915267982)
+  minted a repository-selected PR-write token, read the fixed PR comment with
+  `HTTP 200`, and received the expected `HTTP 422` validation response when it
+  intentionally omitted the required comment body.
+- No issue comment, reaction, review, or other repository state was created by
+  the probe. Credential values remained outside logs and model context.
+
 ## Repair
 
 - Remove cosmetic request/completion reactions.
