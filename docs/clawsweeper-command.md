@@ -37,6 +37,12 @@ have reached a model verdict.
    canonical admission comment. Only that dedicated bot identity is
    authoritative for quota accounting. The record precedes request preparation
    and any model credential, and survives stale, failed, and blocked runs.
+   The exact event body and metadata are read from GitHub's
+   `GITHUB_EVENT_PATH` webhook-payload file; the live comment must retain the
+   event's exact `updated_at` value and body digest. This avoids moving
+   attacker-controlled multiline text through a shell environment value. The
+   live association is independently reauthorized; transitions between trusted
+   association labels do not create false identity mismatches.
 2. The gate fetches those exact objects without checkout, generates the complete
    pull-request diff locally from merge-base to head, and records the merge
    base plus prompt/full-diff size and digests. If the 90 KB model input is

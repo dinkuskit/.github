@@ -104,9 +104,6 @@ jobs:
       - name: Validate standalone command
         id: command
         env:
-          AUTHOR_ASSOCIATION: ${{ github.event.comment.author_association }}
-          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
-          COMMENT_BODY: ${{ github.event.comment.body }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -116,8 +113,23 @@ jobs:
 
           body_file="$(mktemp)"
           comments_file="$(mktemp)"
+          event_body_file="$(mktemp)"
           repo_comments_file="$(mktemp)"
           source_body_file="$(mktemp)"
+
+          if ! jq -ej \
+            '.comment.body | if type == "string" then . else error("comment body is not a string") end' \
+            "$GITHUB_EVENT_PATH" > "$event_body_file" 2>/dev/null \
+            || ! event_comment_id="$(jq -er '.comment.id | select(type == "number") | tostring' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_comment_author="$(jq -er '.comment.user.login | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_comment_author_type="$(jq -er '.comment.user.type | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_comment_association="$(jq -er '.comment.author_association | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_comment_updated_at="$(jq -er '.comment.updated_at | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_issue_number="$(jq -er '.issue.number | select(type == "number") | tostring' "$GITHUB_EVENT_PATH" 2>/dev/null)" \
+            || ! event_repo="$(jq -er '.repository.full_name | select(type == "string" and length > 0)' "$GITHUB_EVENT_PATH" 2>/dev/null)"; then
+            echo 'Triggering event payload was malformed; skipped.'
+            exit 0
+          fi
 
           if ! source_comment="$(gh api "repos/$REPO/issues/comments/$COMMENT_ID" 2>/dev/null)"; then
             echo 'Triggering comment was deleted before admission; skipped.'
@@ -136,17 +148,49 @@ jobs:
             '{id:(.id|tostring), issue_url, html_url, author:.user.login, author_type:.user.type, association:.author_association, updated_at, body_sha256:$body_sha256}' \
             | sha256sum | awk '{print $1}')"
 
-          event_body_sha256="$(printf '%s' "$COMMENT_BODY" | sha256sum | awk '{print $1}')"
-          if [ "$source_comment_id" != "$COMMENT_ID" ] \
-            || [ "$source_comment_author" != "$COMMENT_AUTHOR" ] \
-            || [ "$source_comment_author_type" = "Bot" ] \
-            || [ "$source_comment_association" != "$AUTHOR_ASSOCIATION" ] \
-            || [ "$source_comment_issue_url" != "https://api.github.com/repos/$REPO/issues/$PR" ] \
-            || [ -z "$source_comment_updated_at" ] \
-            || [ "$source_comment_body_sha256" != "$event_body_sha256" ]; then
-            echo 'Triggering comment identity or version changed before admission; skipped.'
+          event_body_sha256="$(sha256sum "$event_body_file" | awk '{print $1}')"
+          case "$event_comment_association" in
+            OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR) ;;
+            *)
+              echo 'Triggering event author is no longer eligible; skipped.'
+              exit 0
+              ;;
+          esac
+          case "$source_comment_association" in
+            OWNER|MEMBER|COLLABORATOR|CONTRIBUTOR) ;;
+            *)
+              echo 'Live comment author is no longer eligible; skipped.'
+              exit 0
+              ;;
+          esac
+
+          mismatch_reason=""
+          if [ "$event_repo" != "$REPO" ] \
+            || [ "$event_issue_number" != "$PR" ] \
+            || [ "$event_comment_id" != "$COMMENT_ID" ]; then
+            mismatch_reason="event-scope"
+          elif [ "$source_comment_id" != "$event_comment_id" ]; then
+            mismatch_reason="id"
+          elif [ "$source_comment_author" != "$event_comment_author" ]; then
+            mismatch_reason="author"
+          elif [ "$event_comment_author_type" = "Bot" ] \
+            || [ "$source_comment_author_type" = "Bot" ]; then
+            mismatch_reason="author-type"
+          elif [ "$source_comment_issue_url" != "https://api.github.com/repos/$REPO/issues/$PR" ]; then
+            mismatch_reason="issue"
+          elif [ "$source_comment_updated_at" != "$event_comment_updated_at" ]; then
+            mismatch_reason="version"
+          elif [ "$source_comment_body_sha256" != "$event_body_sha256" ]; then
+            mismatch_reason="body"
+          fi
+          if [ -n "$mismatch_reason" ]; then
+            echo "Triggering comment identity or version changed before admission ($mismatch_reason); skipped."
             exit 0
           fi
+          # Re-authorize from the current API record. Both event and live
+          # associations must be trusted, but a trusted-to-trusted membership
+          # label transition is not itself an identity change.
+          AUTHOR_ASSOCIATION="$source_comment_association"
           tr '[:upper:]' '[:lower:]' < "$source_body_file" > "$body_file"
 
           command_kind=""

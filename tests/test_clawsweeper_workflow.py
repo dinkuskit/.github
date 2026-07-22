@@ -183,6 +183,8 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         prior_same_pair: int = 0,
         prior_other_pairs: int = 0,
         live_body: str | None = None,
+        live_association: str | None = None,
+        live_updated_at: str | None = None,
     ) -> bool:
         with tempfile.TemporaryDirectory() as raw_temp:
             root = Path(raw_temp)
@@ -208,9 +210,33 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             )
             gh.chmod(0o755)
             output = root / "github-output"
+            event_path = root / "event.json"
+            event_path.write_text(
+                json.dumps(
+                    {
+                        "comment": {
+                            "id": 99,
+                            "user": {"login": "alice", "type": "User"},
+                            "author_association": association,
+                            "updated_at": "2026-07-21T20:00:00Z",
+                            "body": body,
+                        },
+                        "issue": {"number": 7},
+                        "repository": {"full_name": "dinkuskit/blocks"},
+                    }
+                ),
+                encoding="utf-8",
+            )
             source = source_comment_record(
                 body if live_body is None else live_body,
-                association=association,
+                association=(
+                    association if live_association is None else live_association
+                ),
+                updated_at=(
+                    "2026-07-21T20:00:00Z"
+                    if live_updated_at is None
+                    else live_updated_at
+                ),
             )
             bot_user = {"login": "dinkuskit-clawsweeper[bot]", "type": "Bot"}
             pr_comments: list[dict[str, object]] = []
@@ -252,10 +278,8 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             env.update(
                 {
                     "APP_BOT_LOGIN": "dinkuskit-clawsweeper[bot]",
-                    "AUTHOR_ASSOCIATION": association,
-                    "COMMENT_AUTHOR": "alice",
-                    "COMMENT_BODY": body,
                     "COMMENT_ID": "99",
+                    "GITHUB_EVENT_PATH": str(event_path),
                     "GITHUB_OUTPUT": str(output),
                     "GITHUB_RUN_ATTEMPT": "1",
                     "GITHUB_RUN_ID": "99",
@@ -300,6 +324,43 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                 "@clawsweeper review",
                 live_body="command removed after event delivery",
             )
+        )
+
+    def test_triggering_comment_version_must_match_the_event(self) -> None:
+        self.assertFalse(
+            self.run_case(
+                "@clawsweeper review",
+                live_updated_at="2026-07-21T20:00:01Z",
+            )
+        )
+
+    def test_gate_reads_exact_body_from_the_event_payload_file(self) -> None:
+        body = 'context\n"quoted" \\ path\n@clawsweeper review\n'
+        self.assertTrue(self.run_case(body))
+        command = named_step("Validate standalone command")
+        self.assertIn("GITHUB_EVENT_PATH", command)
+        self.assertIn("event_comment_updated_at", command)
+        self.assertNotIn("COMMENT_BODY", command)
+
+    def test_live_author_association_is_reauthorized_not_string_pinned(self) -> None:
+        self.assertTrue(
+            self.run_case(
+                "@clawsweeper review",
+                association="MEMBER",
+                live_association="COLLABORATOR",
+            )
+        )
+        self.assertFalse(
+            self.run_case(
+                "@clawsweeper review",
+                association="MEMBER",
+                live_association="NONE",
+            )
+        )
+        command = named_step("Validate standalone command")
+        self.assertIn('AUTHOR_ASSOCIATION="$source_comment_association"', command)
+        self.assertNotIn(
+            '"$source_comment_association" != "$event_comment_association"', command
         )
 
     def test_rereview_is_bounded_to_maintainers_and_current_pair(self) -> None:
