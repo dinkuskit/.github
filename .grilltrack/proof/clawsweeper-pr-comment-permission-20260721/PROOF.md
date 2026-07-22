@@ -50,6 +50,13 @@ Date: 2026-07-21 America/New_York
 
 ## Verification
 
+- Draft repair PR:
+  [dinkuskit/.github#5](https://github.com/dinkuskit/.github/pull/5)
+- Repair commit: `4e6602fb5372548defd3d8cbef4489b8eb392d75`
+- CI run:
+  [29888827937](https://github.com/dinkuskit/.github/actions/runs/29888827937)
+  completed successfully.
+
 ```text
 git diff --check
 ruby -e 'require "yaml"; YAML.load_file(ARGV.fetch(0))' \
@@ -59,6 +66,7 @@ python3 -m unittest -v tests/test_clawsweeper_workflow.py
 
 Result: 32 tests passed with one expected caller-template skip. Inline shell
 parsing, YAML parsing, token-scope assertions, and diff hygiene passed.
+Independent security review was clean with no P0-P2 findings.
 
 ## Gates and next proof
 
