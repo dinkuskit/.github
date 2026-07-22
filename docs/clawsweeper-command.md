@@ -29,6 +29,13 @@ base/head pair is limited to two hosted admissions total. A prior admission is
 enough to recover from a pending, stale, failed, or blocked attempt; it need not
 have reached a model verdict.
 
+GitHub may expose a private organization member as `CONTRIBUTOR` in a public
+comment payload. The gate resolves the comment author's current repository
+permission through GitHub's
+[metadata-read collaborator endpoint](https://docs.github.com/en/rest/collaborators/collaborators#get-repository-permissions-for-a-user)
+and normalizes `write` or `admin` access to the maintainer policy. Public/read
+access is not promoted, and an API failure stays on the contributor policy.
+
 ## What runs
 
 1. A deterministic gate on GitHub-hosted `ubuntu-latest` re-fetches and
@@ -42,7 +49,9 @@ have reached a model verdict.
    event's exact `updated_at` value and body digest. This avoids moving
    attacker-controlled multiline text through a shell environment value. The
    live association is independently reauthorized; transitions between trusted
-   association labels do not create false identity mismatches.
+   association labels do not create false identity mismatches. Private
+   write/admin membership is resolved with the caller repository's built-in
+   metadata-read token; no App or workflow permission is added.
 2. The gate fetches those exact objects without checkout, generates the complete
    pull-request diff locally from merge-base to head, and records the merge
    base plus prompt/full-diff size and digests. If the 90 KB model input is
@@ -65,8 +74,10 @@ have reached a model verdict.
    publication and neutralizes in-flight drift without deleting the admission.
 
 The model never receives the token that can comment on the repository. A
-force-push or base-branch advance causes the prepared review to be discarded
-instead of attached to a different diff.
+change to the PR's authorized base/head pair causes the prepared review to be
+discarded instead of attached to a different diff. The gate fetches the
+authorized base commit by immutable SHA rather than substituting the moving
+base-branch tip.
 Raw model output and CLI stderr stay outside the artifact upload allowlist;
 only the receipt, bounded review, and numeric exit code cross to the publisher.
 Artifact IDs, rather than attempt-derived names, bind partial job reruns to the
