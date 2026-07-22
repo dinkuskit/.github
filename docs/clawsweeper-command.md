@@ -107,10 +107,15 @@ do not substitute a mutable branch reference.
 ## Activation checklist (human)
 
 1. With human approval, create a **DinkusKit-owned** private ClawSweeper GitHub
-   App, give it only Issues read/write and Pull requests read, and install it on
-   the selected product repositories. The existing private
-   `saari-clawsweeper` App is owned by `saari-co` and cannot be reused for this
-   installation.
+   App, give it Pull requests read/write and no Issues access, and install it
+   only on the selected product repositories. GitHub applies pull-request
+   authorization to timeline comments attached to a pull request even though
+   those comments use the Issues REST route; an issues-write installation token
+   can write to a real issue while receiving `403` on the corresponding pull
+   request resource. The workflow therefore omits cosmetic reactions and mints
+   a repository-scoped token requesting only Pull requests write. The existing
+   private `saari-clawsweeper` App is owned by `saari-co` and cannot be reused
+   for this installation.
 2. Set Actions variables `CLAWSWEEPER_APP_ID` and
    `CLAWSWEEPER_APP_BOT_LOGIN` (including `[bot]`), plus secret
    `CLAWSWEEPER_APP_PRIVATE_KEY`, for the selected repositories.
@@ -122,7 +127,7 @@ do not substitute a mutable branch reference.
 5. Merge thin caller into each product repo (`blocks`, `bundles`, …).
 6. On a current PR as OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR, comment
    `@clawsweeper review` alone on a line.
-7. Confirm eyes reaction, Actions run, advisory comment, rocket.
+7. Confirm the canonical admission comment, Actions run, and terminal advisory.
 
 The App/private-key setup is required for contributor self-service: the shared
 `github-actions[bot]` identity is intentionally not accepted as quota
