@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import tempfile
 import textwrap
@@ -534,8 +535,13 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         self.assertIn("--no-bash-env", model_step)
         self.assertNotIn('tail ', model_step)
         self.assertNotIn('cat "$error_log"', model_step)
+        self.assertIn('--output-format=json', model_step)
+        self.assertIn('--stream=off', model_step)
+        self.assertNotIn('--silent', model_step)
+        self.assertIn('events_jsonl="$tmp_dir/copilot.events.jsonl"', model_step)
         self.assertIn('raw_review="$tmp_dir/review.raw"', model_step)
         self.assertIn('error_log="$tmp_dir/copilot.stderr"', model_step)
+        self.assertNotIn('events_jsonl="$out_dir/', model_step)
         self.assertNotIn('raw_review="$out_dir/', model_step)
         self.assertNotIn('error_log="$out_dir/', model_step)
 
@@ -600,9 +606,19 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
     def test_model_output_is_bounded_and_contract_checked(self) -> None:
         model_step = named_step("Run credential-isolated Copilot review")
         publish = named_step("Publish exact-head advisory comment")
+        self.assertIn('[ "$events_bytes" -gt 1000000 ]', model_step)
+        self.assertIn('(.[-1].type == "result")', model_step)
+        self.assertIn('(.[-1].exitCode == 0)', model_step)
+        self.assertIn('((root_messages | length) == 1)', model_step)
+        self.assertIn('[ "$response_bytes" -gt 100000 ]', model_step)
+        self.assertIn('fromjson', model_step)
+        self.assertIn('schema_version', model_step)
+        self.assertIn('review_markdown', model_step)
+        self.assertIn('embedded_verdict_count', model_step)
+        self.assertIn('review_has_content', model_step)
+        self.assertIn('trap cleanup_private_model_files EXIT', model_step)
         self.assertIn('[ "$review_bytes" -gt 50000 ]', model_step)
-        self.assertIn("verdict_count", model_step)
-        self.assertIn("final_line", model_step)
+        self.assertIn("printf '\\n\\nclawsweeper-verdict: %s\\n'", model_step)
         self.assertIn("Prevent model-authored GitHub @-mentions", model_step)
         mention_sanitize = model_step.index("perl -CSDA")
         transformed_bound = model_step.index('safe_bytes="$(wc -c')
@@ -618,6 +634,245 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         self.assertIn('cat "$safe_review"', publish)
         self.assertNotIn('cat "$review_file"', publish)
         self.assertIn('[ "$body_bytes" -gt 60000 ]', publish)
+
+    def run_model_case(
+        self,
+        *,
+        assistant_content: str = '{"schema_version":1,"verdict":"clean","review_markdown":"Looks good."}',
+        raw_events: str | None = None,
+        copilot_exit: int = 0,
+        diff_truncated: bool = False,
+        unreviewable_changes: bool = False,
+    ) -> tuple[subprocess.CompletedProcess[str], str, str, list[str], dict[str, bool]]:
+        model_script = step_script("Run credential-isolated Copilot review")
+        with tempfile.TemporaryDirectory() as raw_temp:
+            root = Path(raw_temp)
+            request_dir = root / "clawsweeper-request"
+            mock_bin = root / "bin"
+            request_dir.mkdir()
+            mock_bin.mkdir()
+            (request_dir / "prompt.txt").write_text("Review this diff.\n", encoding="utf-8")
+            (request_dir / "receipt.json").write_text(
+                json.dumps(
+                    {
+                        "diff_truncated": diff_truncated,
+                        "unreviewable_changes": unreviewable_changes,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            if raw_events is None:
+                raw_events = "\n".join(
+                    json.dumps(event, separators=(",", ":"))
+                    for event in (
+                        {"type": "session.start"},
+                        {
+                            "type": "assistant.message",
+                            "data": {"content": assistant_content},
+                        },
+                        {"type": "result", "exitCode": 0},
+                    )
+                ) + "\n"
+
+            copilot = mock_bin / "copilot"
+            copilot.write_text(
+                "#!/usr/bin/env bash\n"
+                'printf \'%s\\n\' "$@" > "$TMPDIR/copilot.args"\n'
+                f"printf '%s' {shlex.quote(raw_events)}\n"
+                "printf '%s\\n' 'private copilot diagnostic' >&2\n"
+                f"exit {copilot_exit}\n",
+                encoding="utf-8",
+            )
+            copilot.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "RUNNER_TEMP": str(root),
+                    "PATH": f"{mock_bin}:{env['PATH']}",
+                    "COPILOT_GITHUB_TOKEN": "test-token",
+                    "MODEL": "gpt-5.6-terra",
+                }
+            )
+            result = subprocess.run(
+                ["bash", "-c", model_script],
+                cwd=ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            out_dir = root / "clawsweeper-output"
+            review = (out_dir / "review.md").read_text(encoding="utf-8")
+            exit_code = (out_dir / "exit-code").read_text(encoding="utf-8").strip()
+            args = (root / "copilot-tmp" / "copilot.args").read_text(
+                encoding="utf-8"
+            ).splitlines()
+            private_files = {
+                name: (root / "copilot-tmp" / name).exists()
+                for name in (
+                    "copilot.events.jsonl",
+                    "review.raw",
+                    "review.parsed.json",
+                    "copilot.stderr",
+                    "review.sanitized",
+                    "review.safe-markdown",
+                )
+            }
+            return result, review, exit_code, args, private_files
+
+    def test_model_step_extracts_strict_jsonl_and_renders_verdict(self) -> None:
+        result, review, exit_code, args, private_files = self.run_model_case(
+            assistant_content=json.dumps(
+                {
+                    "schema_version": 1,
+                    "verdict": "findings",
+                    "review_markdown": "Potential issue for @maintainers.",
+                }
+            )
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(exit_code, "0")
+        self.assertIn("Potential issue for @\u200bmaintainers.", review)
+        self.assertTrue(review.endswith("clawsweeper-verdict: findings\n"))
+        self.assertEqual(review.count("clawsweeper-verdict:"), 1)
+        self.assertIn("--output-format=json", args)
+        self.assertIn("--stream=off", args)
+        self.assertNotIn("--silent", args)
+        self.assertTrue(all(not exists for exists in private_files.values()))
+
+    def test_model_step_accepts_only_a_whole_response_json_fence(self) -> None:
+        fenced = """```json
+{"schema_version":1,"verdict":"clean","review_markdown":"No findings."}
+```"""
+        result, review, exit_code, _, _ = self.run_model_case(
+            assistant_content=fenced
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertEqual(exit_code, "0")
+        self.assertTrue(review.endswith("clawsweeper-verdict: clean\n"))
+
+    def test_model_step_fails_closed_on_invalid_structured_output(self) -> None:
+        valid = '{"schema_version":1,"verdict":"clean","review_markdown":"No findings."}'
+        cases = {
+            "malformed_jsonl": "not-json\n",
+            "missing_result": json.dumps(
+                {"type": "assistant.message", "data": {"content": valid}}
+            )
+            + "\n",
+            "failed_terminal_result": "\n".join(
+                json.dumps(event)
+                for event in (
+                    {"type": "assistant.message", "data": {"content": valid}},
+                    {"type": "result", "exitCode": 1},
+                )
+            )
+            + "\n",
+            "duplicate_root_message": "\n".join(
+                json.dumps(event)
+                for event in (
+                    {"type": "assistant.message", "data": {"content": valid}},
+                    {"type": "assistant.message", "data": {"content": valid}},
+                    {"type": "result", "exitCode": 0},
+                )
+            )
+            + "\n",
+            "malformed_extra_root_message": "\n".join(
+                json.dumps(event)
+                for event in (
+                    {"type": "assistant.message", "data": {}},
+                    {"type": "assistant.message", "data": {"content": valid}},
+                    {"type": "result", "exitCode": 0},
+                )
+            )
+            + "\n",
+        }
+        for name, raw_events in cases.items():
+            with self.subTest(name=name):
+                result, review, exit_code, _, private_files = self.run_model_case(
+                    raw_events=raw_events
+                )
+                self.assertEqual(result.returncode, 21)
+                self.assertEqual(exit_code, "21")
+                self.assertTrue(review.endswith("clawsweeper-verdict: blocked\n"))
+                self.assertNotIn("private copilot diagnostic", review)
+                self.assertTrue(
+                    all(not exists for exists in private_files.values())
+                )
+
+    def test_model_step_fails_closed_on_invalid_review_object(self) -> None:
+        cases = {
+            "plain_markdown": "No findings.",
+            "extra_key": '{"schema_version":1,"verdict":"clean","review_markdown":"No findings.","extra":true}',
+            "invalid_verdict": '{"schema_version":1,"verdict":"approve","review_markdown":"No findings."}',
+            "embedded_marker": '{"schema_version":1,"verdict":"clean","review_markdown":"clawsweeper-verdict: clean"}',
+            "oversized_markdown": json.dumps(
+                {
+                    "schema_version": 1,
+                    "verdict": "findings",
+                    "review_markdown": "x" * 50001,
+                }
+            ),
+            "controls_only_markdown": json.dumps(
+                {
+                    "schema_version": 1,
+                    "verdict": "clean",
+                    "review_markdown": "\u0001\t\n",
+                }
+            ),
+        }
+        for name, assistant_content in cases.items():
+            with self.subTest(name=name):
+                result, review, exit_code, _, _ = self.run_model_case(
+                    assistant_content=assistant_content
+                )
+                self.assertEqual(result.returncode, 21)
+                self.assertEqual(exit_code, "21")
+                self.assertTrue(review.endswith("clawsweeper-verdict: blocked\n"))
+
+    def test_model_step_prohibits_clean_on_incomplete_diff(self) -> None:
+        for receipt_flag in ("diff_truncated", "unreviewable_changes"):
+            with self.subTest(receipt_flag=receipt_flag):
+                kwargs = {receipt_flag: True}
+                result, review, exit_code, _, _ = self.run_model_case(**kwargs)
+                self.assertEqual(result.returncode, 21)
+                self.assertEqual(exit_code, "21")
+                self.assertTrue(review.endswith("clawsweeper-verdict: blocked\n"))
+
+    def test_model_step_does_not_publish_cli_stderr(self) -> None:
+        result, review, exit_code, _, private_files = self.run_model_case(
+            copilot_exit=7
+        )
+
+        self.assertEqual(result.returncode, 7)
+        self.assertEqual(exit_code, "7")
+        self.assertIn("Copilot CLI exited with status 7", review)
+        self.assertNotIn("private copilot diagnostic", review)
+        self.assertTrue(all(not exists for exists in private_files.values()))
+
+    def test_model_step_distinguishes_native_exit_21(self) -> None:
+        result, review, exit_code, _, _ = self.run_model_case(copilot_exit=21)
+
+        self.assertEqual(result.returncode, 21)
+        self.assertEqual(exit_code, "21")
+        self.assertIn("Copilot CLI exited with status 21", review)
+        self.assertNotIn("structured-output contract", review)
+
+    def test_model_step_bounds_private_jsonl_before_parsing(self) -> None:
+        oversized_events = json.dumps(
+            {"type": "diagnostic", "padding": "x" * 1000001}
+        ) + "\n"
+        result, review, exit_code, _, private_files = self.run_model_case(
+            raw_events=oversized_events
+        )
+
+        self.assertEqual(result.returncode, 21)
+        self.assertEqual(exit_code, "21")
+        self.assertIn("event stream exceeded its private size bound", review)
+        self.assertTrue(all(not exists for exists in private_files.values()))
 
     def test_prompt_stays_below_linux_single_argument_limit(self) -> None:
         prepare = named_step("Prepare immutable review request")

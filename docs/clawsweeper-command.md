@@ -66,7 +66,10 @@ access is not promoted, and an API failure stays on the contributor policy.
    **`gpt-5.6-terra`** on exact Node.js `22.23.1`. It receives only the Copilot
    Requests PAT: no repository token, checkout, shell/file tools, built-in MCP,
    or mutation permission. The request artifact is digest-validated before this
-   credential is exposed.
+   credential is exposed. Copilot emits a bounded private JSONL event stream;
+   the job accepts exactly one root assistant message and a successful terminal
+   result, then validates an exact versioned review object. Trusted workflow
+   code—not model prose—renders the public terminal verdict line.
 4. A deterministic publisher mints a fresh narrow App token, rechecks the exact
    triggering-comment version and both SHAs, independently validates the receipt
    and output contract, sanitizes and re-bounds the response, and updates only
@@ -78,8 +81,9 @@ change to the PR's authorized base/head pair causes the prepared review to be
 discarded instead of attached to a different diff. The gate fetches the
 authorized base commit by immutable SHA rather than substituting the moving
 base-branch tip.
-Raw model output and CLI stderr stay outside the artifact upload allowlist;
-only the receipt, bounded review, and numeric exit code cross to the publisher.
+Raw JSONL events, extracted model output, and CLI stderr stay outside the
+artifact upload allowlist; only the receipt, deterministically rendered bounded
+review, and numeric exit code cross to the publisher.
 Artifact IDs, rather than attempt-derived names, bind partial job reruns to the
 actual upstream artifacts.
 
