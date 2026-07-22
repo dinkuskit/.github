@@ -1186,9 +1186,8 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
         )
         self.assertEqual(self.workflow.count("merge-multiple: true"), 2)
 
-    def test_model_spend_and_success_reaction_are_bounded(self) -> None:
+    def test_model_spend_and_admission_are_bounded(self) -> None:
         model_step = named_step("Run credential-isolated Copilot review")
-        completion = named_step("Acknowledge completion")
         command = named_step("Validate standalone command")
         reserve = named_step("Persist review admission before model access")
         self.assertIn("--max-ai-credits=50", model_step)
@@ -1214,12 +1213,18 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             "group: clawsweeper-model-${{ github.repository_id }}-${{ github.event.issue.number }}",
             self.workflow,
         )
-        self.assertIn(
-            "steps.publish.outputs.publish_valid == 'true'", completion
-        )
-        self.assertIn(
-            "steps.publish.outputs.model_success == 'true'", completion
-        )
+
+    def test_app_tokens_are_bounded_to_pull_request_comments(self) -> None:
+        gate_token = named_step("Mint narrow ClawSweeper App token")
+        publish_token = named_step("Mint narrow ClawSweeper App publish token")
+        for token_step in (gate_token, publish_token):
+            self.assertIn("permission-pull-requests: write", token_step)
+            self.assertNotIn("permission-issues:", token_step)
+            self.assertIn(
+                "repositories: ${{ github.event.repository.name }}", token_step
+            )
+        self.assertNotIn("- name: Acknowledge request", self.workflow)
+        self.assertNotIn("- name: Acknowledge completion", self.workflow)
 
     def run_publisher_case(
         self,

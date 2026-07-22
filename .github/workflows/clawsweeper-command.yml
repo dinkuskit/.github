@@ -282,17 +282,8 @@ jobs:
           private-key: ${{ secrets.CLAWSWEEPER_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-issues: write
-          permission-pull-requests: read
-
-      - name: Acknowledge request
-        if: steps.command.outputs.review_requested == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-        run: |
-          gh api -X POST \
-            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
-            -f content=eyes >/dev/null || true
+          # GitHub authorizes a PR timeline comment as a pull-request resource.
+          permission-pull-requests: write
 
       - name: Persist review admission before model access
         id: reserve
@@ -1113,8 +1104,8 @@ jobs:
           private-key: ${{ secrets.CLAWSWEEPER_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
-          permission-issues: write
-          permission-pull-requests: read
+          # GitHub authorizes a PR timeline comment as a pull-request resource.
+          permission-pull-requests: write
 
       - name: Download bounded review output
         id: output_artifact
@@ -1392,12 +1383,3 @@ jobs:
           fi
           echo "publish_valid=$publish_valid" >> "$GITHUB_OUTPUT"
           echo "model_success=$model_success" >> "$GITHUB_OUTPUT"
-
-      - name: Acknowledge completion
-        if: steps.publish.outputs.publish_valid == 'true' && steps.publish.outputs.model_success == 'true'
-        env:
-          GH_TOKEN: ${{ steps.app_token.outputs.token }}
-        run: |
-          gh api -X POST \
-            "repos/$REPO/issues/comments/$COMMENT_ID/reactions" \
-            -f content=rocket >/dev/null || true
