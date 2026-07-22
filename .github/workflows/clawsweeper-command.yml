@@ -337,8 +337,16 @@ jobs:
           test "$current_source_body_sha" = "$SOURCE_COMMENT_BODY_SHA"
           test "$current_source_sha" = "$SOURCE_COMMENT_SHA"
 
+          # Ignore runner-level Git configuration/attributes. Review semantics
+          # come only from the fetched objects and the fixed commands below.
+          export GIT_CONFIG_GLOBAL=/dev/null
+          export GIT_CONFIG_SYSTEM=/dev/null
+          export GIT_CONFIG_NOSYSTEM=1
+          export GIT_ATTR_NOSYSTEM=1
           git_dir="$RUNNER_TEMP/clawsweeper-git"
-          git init -q "$git_dir"
+          git init -q --bare --template= "$git_dir"
+          test ! -e "$git_dir/info/attributes"
+          git -C "$git_dir" config --local core.attributesFile /dev/null
           git -C "$git_dir" remote add origin "https://github.com/$REPO.git"
           git -C "$git_dir" fetch -q --no-tags origin \
             "+refs/heads/$base_ref:refs/remotes/origin/clawsweeper-base" \
@@ -386,6 +394,19 @@ jobs:
                 hash = substr(value, 8)
                 return length(hash) == 64 && hash !~ /[^0-9a-f]/
               }
+              function valid_size(value, length_value) {
+                if (value !~ /^(0|[1-9][0-9]*)$/) {
+                  return 0
+                }
+                length_value = length(value)
+                if (length_value < 19) {
+                  return 1
+                }
+                if (length_value > 19) {
+                  return 0
+                }
+                return ("x" value <= "x9223372036854775807")
+              }
               NR == 1 {
                 if ($0 != "version https://git-lfs.github.com/spec/v1" &&
                     $0 != "version https://hawser.github.com/spec/v1" &&
@@ -412,7 +433,7 @@ jobs:
                 }
 
                 if (state == "extensions_or_oid" &&
-                    key ~ /^ext-[0-9]-[A-Za-z0-9_]+$/) {
+                    key ~ /^ext-[0-9]-[A-Za-z0-9_].*$/) {
                   priority = substr(key, 5, 1) + 0
                   if (priority <= previous_priority || !valid_oid(value)) {
                     bad = 1
@@ -433,7 +454,7 @@ jobs:
                 }
 
                 if (state == "size" && key == "size") {
-                  if (value !~ /^(0|[1-9][0-9]*)$/) {
+                  if (!valid_size(value)) {
                     bad = 1
                     exit
                   }
@@ -453,6 +474,54 @@ jobs:
             ' "$pointer_file"
           }
 
+          scan_declared_binary_attributes() {
+            local attr_name attr_path attr_value attributes_file
+            local expected_paths_file expected_records observed_paths_file
+            local record_count revision
+            attributes_file="$RUNNER_TEMP/clawsweeper-diff-attributes"
+            expected_paths_file="$RUNNER_TEMP/clawsweeper-expected-attribute-paths"
+            observed_paths_file="$RUNNER_TEMP/clawsweeper-observed-attribute-paths"
+            : > "$attributes_file"
+            : > "$observed_paths_file"
+            cat "$changed_paths_file" "$changed_paths_file" > "$expected_paths_file"
+            for revision in "$merge_base_sha" "$head_sha"; do
+              GIT_CONFIG_GLOBAL=/dev/null \
+              GIT_CONFIG_SYSTEM=/dev/null \
+              GIT_CONFIG_NOSYSTEM=1 \
+              GIT_ATTR_NOSYSTEM=1 \
+              git -C "$git_dir" -c core.attributesFile=/dev/null check-attr \
+                --source="$revision" --stdin -z diff \
+                < "$changed_paths_file" >> "$attributes_file"
+            done
+
+            declared_binary_changes=false
+            record_count=0
+            while IFS= read -r -d '' attr_path; do
+              IFS= read -r -d '' attr_name
+              IFS= read -r -d '' attr_value
+              if [ -z "$attr_path" ] || [ "$attr_name" != diff ]; then
+                echo '::error::malformed git check-attr output'
+                return 1
+              fi
+              printf '%s\0' "$attr_path" >> "$observed_paths_file"
+              record_count=$((record_count + 1))
+              if [ "$attr_value" = unset ]; then
+                declared_binary_changes=true
+              fi
+            done < "$attributes_file"
+
+            expected_records=$((changed_path_count * 2))
+            if [ "$record_count" -ne "$expected_records" ]; then
+              echo '::error::incomplete git check-attr output'
+              return 1
+            fi
+            if ! cmp -s "$expected_paths_file" "$observed_paths_file"; then
+              echo '::error::git check-attr path identity mismatch'
+              return 1
+            fi
+            rm -f "$attributes_file" "$expected_paths_file" "$observed_paths_file"
+          }
+
           unreviewable_changes=false
           if [ "$diff_truncated" = false ]; then
             numstat_file="$RUNNER_TEMP/clawsweeper-numstat"
@@ -466,6 +535,10 @@ jobs:
               "$merge_base_sha" "$head_sha" > "$changed_paths_file"
             changed_path_count="$(LC_ALL=C tr -cd '\000' \
               < "$changed_paths_file" | wc -c | tr -d ' ')"
+            declared_binary_changes=false
+            if [ "$changed_path_count" -le 250 ]; then
+              scan_declared_binary_attributes
+            fi
 
             if ! tr -d '\000' < "$out_dir/pr.diff" \
               | cmp -s - "$out_dir/pr.diff"; then
@@ -477,6 +550,8 @@ jobs:
               "$raw_file"; then
               unreviewable_changes=true
             elif [ "$changed_path_count" -gt 250 ]; then
+              unreviewable_changes=true
+            elif [ "$declared_binary_changes" = true ]; then
               unreviewable_changes=true
             else
               pointer_candidate="$RUNNER_TEMP/clawsweeper-lfs-pointer"

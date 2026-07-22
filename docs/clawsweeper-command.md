@@ -41,9 +41,12 @@ have reached a model verdict.
    pull-request diff locally from merge-base to head, and records the merge
    base plus prompt/full-diff size and digests. If the 90 KB model input is
    truncated, changes more than 250 paths, or contains binary/LFS/submodule
-   changes, a `clean` verdict is deterministically prohibited. LFS detection
-   parses small changed blobs as canonical pointer files; a header mentioned
-   in ordinary source or documentation does not trip the guard.
+   changes, a `clean` verdict is deterministically prohibited. Binary
+   classification resolves committed `diff` attributes from both immutable
+   trees in an ambient-config-isolated bare repository. LFS detection parses
+   small changed blobs as reference-compatible pointer files, including
+   extension-name punctuation; a header mentioned in ordinary source or
+   documentation does not trip the guard.
 3. An isolated `ubuntu-latest` model job runs version-pinned Copilot CLI with
    **`gpt-5.6-terra`** on exact Node.js `22.23.1`. It receives only the Copilot
    Requests PAT: no repository token, checkout, shell/file tools, built-in MCP,

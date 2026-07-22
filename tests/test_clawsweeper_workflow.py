@@ -655,7 +655,71 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             (
                 (
                     "version https://git-lfs.github.com/spec/v1\n"
-                    f"ext-0-bad-name sha256:{'c' * 64}\n"
+                    f"ext-0-foo-bar sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-foo.bar-baz9 sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-foo sha256:{'c' * 64}\n"
+                    f"ext-9-bar sha256:{'d' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-Foo sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-foo_bar sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-foo$bar sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                True,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0-.foo sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-0--foo sha256:{'c' * 64}\n"
                     f"oid sha256:{'a' * 64}\n"
                     "size 123\n"
                 ).encode(),
@@ -673,9 +737,28 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
             (
                 (
                     "version https://git-lfs.github.com/spec/v1\n"
+                    f"ext-9-bar sha256:{'d' * 64}\n"
+                    f"ext-0-foo sha256:{'c' * 64}\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
                     f"ext-0-foo sha256:{'c' * 64}\n"
                     f"ext-0-bar sha256:{'d' * 64}\n"
                     f"oid sha256:{'a' * 64}\n"
+                    "size 123\n"
+                ).encode(),
+                False,
+            ),
+            (
+                (
+                    "version https://git-lfs.github.com/spec/v1\n"
+                    f"oid sha256:{'a' * 64}\n"
+                    f"ext-0-foo sha256:{'c' * 64}\n"
                     "size 123\n"
                 ).encode(),
                 False,
@@ -707,6 +790,19 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                 False,
             ),
             (pointer.rstrip(b"\n"), False),
+            (
+                pointer.replace(
+                    b"size 123", b"size 9223372036854775807", 1
+                ),
+                True,
+            ),
+            (
+                pointer.replace(
+                    b"size 123", b"size 9223372036854775808", 1
+                ),
+                False,
+            ),
+            (pointer.replace(b"size 123", b"size 0123", 1), False),
             (extended_pointer(1023), True),
             (extended_pointer(1024), False),
             (
@@ -737,6 +833,213 @@ class ClawSweeperPathBWorkflowTests(unittest.TestCase):
                     result.returncode == 0,
                     expected,
                     result.stderr or result.stdout,
+                )
+
+    def test_declared_binary_attributes_use_both_immutable_trees(self) -> None:
+        prepare = step_script("Prepare immutable review request")
+        match = re.search(
+            r"(?ms)^scan_declared_binary_attributes\(\) \{\n.*?^\}",
+            prepare,
+        )
+        self.assertIsNotNone(match)
+        assert match is not None
+        function = match.group(0)
+
+        self.assertIn("git init -q --bare --template=", prepare)
+        self.assertIn("GIT_CONFIG_GLOBAL=/dev/null", prepare)
+        self.assertIn("GIT_CONFIG_SYSTEM=/dev/null", prepare)
+        self.assertIn("GIT_ATTR_NOSYSTEM=1", prepare)
+        self.assertIn(
+            'config --local core.attributesFile /dev/null', prepare
+        )
+        self.assertIn("GIT_CONFIG_GLOBAL=/dev/null", function)
+        self.assertIn('core.attributesFile=/dev/null', function)
+        self.assertEqual(function.count('--source="$revision"'), 1)
+        self.assertIn("--stdin -z diff", function)
+        self.assertIn('[ "$attr_value" = unset ]', function)
+        self.assertIn("expected_records=$((changed_path_count * 2))", function)
+        self.assertIn(
+            'cmp -s "$expected_paths_file" "$observed_paths_file"',
+            function,
+        )
+
+        def run_case(
+            base_rule: str | None,
+            head_rule: str | None,
+            *,
+            delete_payload: bool = False,
+            top_level_attributes: bool = False,
+        ) -> bool:
+            with tempfile.TemporaryDirectory() as raw_temp:
+                root = Path(raw_temp)
+                source = root / "source"
+                inspection = root / "inspection"
+                runner_temp = root / "runner"
+                source.mkdir()
+                inspection.mkdir()
+                runner_temp.mkdir()
+
+                def git(repo: Path, *args: str) -> str:
+                    result = subprocess.run(
+                        ["git", *args],
+                        cwd=repo,
+                        text=True,
+                        capture_output=True,
+                        check=False,
+                    )
+                    self.assertEqual(
+                        result.returncode,
+                        0,
+                        result.stderr or result.stdout,
+                    )
+                    return result.stdout.strip()
+
+                git(source, "init", "-q", "-b", "main")
+                git(source, "config", "user.name", "ClawSweeper Test")
+                git(
+                    source,
+                    "config",
+                    "user.email",
+                    "clawsweeper@example.invalid",
+                )
+                git(source, "config", "commit.gpgsign", "false")
+                nested = source / "nested"
+                nested.mkdir()
+                attributes = (
+                    source / ".gitattributes"
+                    if top_level_attributes
+                    else nested / ".gitattributes"
+                )
+                payload = nested / "-odd name\npart.opaque"
+                if base_rule is not None:
+                    attributes.write_text(base_rule, encoding="utf-8")
+                payload.write_text("base ASCII payload\n", encoding="utf-8")
+                git(source, "add", "-A")
+                git(source, "commit", "-q", "-m", "base")
+                base_sha = git(source, "rev-parse", "HEAD")
+
+                if head_rule is None:
+                    attributes.unlink(missing_ok=True)
+                else:
+                    attributes.write_text(head_rule, encoding="utf-8")
+                if delete_payload:
+                    payload.unlink()
+                else:
+                    payload.write_text("head ASCII payload\n", encoding="utf-8")
+                git(source, "add", "-A")
+                git(source, "commit", "-q", "-m", "head")
+                head_sha = git(source, "rev-parse", "HEAD")
+
+                git(inspection, "init", "-q", "--bare", "--template=")
+                git(inspection, "remote", "add", "origin", str(source))
+                git(inspection, "fetch", "-q", "--no-tags", "origin", "main")
+                self.assertFalse((inspection / "index").exists())
+
+                changed = subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(inspection),
+                        "diff",
+                        "--name-only",
+                        "-z",
+                        base_sha,
+                        head_sha,
+                    ],
+                    capture_output=True,
+                    check=True,
+                ).stdout
+                changed_paths = root / "changed-paths"
+                changed_paths.write_bytes(changed)
+                changed_path_count = changed.count(b"\0")
+                self.assertGreater(changed_path_count, 0)
+
+                poison_attributes = root / "global-attributes"
+                poison_attributes.write_text("*.opaque -diff\n", encoding="utf-8")
+                poison_config = root / "global-config"
+                poison_config.write_text(
+                    f"[core]\n\tattributesFile = {poison_attributes}\n",
+                    encoding="utf-8",
+                )
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "GIT_ATTR_NOSYSTEM": "1",
+                        "GIT_CONFIG_GLOBAL": str(poison_config),
+                    }
+                )
+                script = (
+                    "set -euo pipefail\n"
+                    f"{function}\n"
+                    'git_dir="$1"\n'
+                    'merge_base_sha="$2"\n'
+                    'head_sha="$3"\n'
+                    'changed_paths_file="$4"\n'
+                    'changed_path_count="$5"\n'
+                    'RUNNER_TEMP="$6"\n'
+                    "scan_declared_binary_attributes\n"
+                    'printf "%s\\n" "$declared_binary_changes"\n'
+                )
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        script,
+                        "bash",
+                        str(inspection),
+                        base_sha,
+                        head_sha,
+                        str(changed_paths),
+                        str(changed_path_count),
+                        str(runner_temp),
+                    ],
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertEqual(
+                    result.returncode,
+                    0,
+                    result.stderr or result.stdout,
+                )
+                return result.stdout.strip() == "true"
+
+        cases = (
+            (None, "*.opaque -diff\n", False, False, True),
+            (None, "*.opaque binary\n", False, False, True),
+            (
+                None,
+                "[attr]opaque -diff\nnested/*.opaque opaque\n",
+                False,
+                True,
+                True,
+            ),
+            ("*.opaque -diff\n", None, True, False, True),
+            ("*.opaque diff\n", "*.opaque diff\n", False, False, False),
+            (None, None, False, False, False),
+        )
+        for (
+            base_rule,
+            head_rule,
+            delete_payload,
+            top_level_attributes,
+            expected,
+        ) in cases:
+            with self.subTest(
+                base_rule=base_rule,
+                head_rule=head_rule,
+                delete_payload=delete_payload,
+                top_level_attributes=top_level_attributes,
+            ):
+                self.assertEqual(
+                    run_case(
+                        base_rule,
+                        head_rule,
+                        delete_payload=delete_payload,
+                        top_level_attributes=top_level_attributes,
+                    ),
+                    expected,
                 )
 
     def test_pr_diff_uses_merge_base_not_diverged_base_tip(self) -> None:
