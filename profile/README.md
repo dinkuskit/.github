@@ -14,6 +14,7 @@ A kit of plugins and templates for [EmDash](https://github.com/emdash-cms/emdash
 
 ## 🛒 Plugins: make it sell
 
+- 🛒 [**commerce**](https://github.com/dinkuskit/commerce) — the open-source commerce layer for EmDash sites.
 - 🎁 [**bundles**](https://github.com/dinkuskit/bundles) — mix-and-match product selection, pricing, inventory, and fulfillment.
 - 🏷️ [**coupons**](https://github.com/dinkuskit/coupons) — advanced promotions, BOGO rules, limits, and migration.
 - 📦 [**inventory**](https://github.com/dinkuskit/inventory) — pools, movements, reservations, and reconciliation.
