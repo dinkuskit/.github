@@ -6,6 +6,10 @@
 
 A kit of plugins and templates for [EmDash](https://github.com/emdash-cms/emdash) sites. Plugins include editable section blocks and commerce tooling; templates provide complete site starting points. Use one or combine them.
 
+> Agents build the code, and it is built so a human can manage it from the admin if need be. An agent may manage it too.
+
+That is the design constraint. Anything in this kit has to be operable from the EmDash admin by a non-technical human without a code change.
+
 <p align="center">* &nbsp; * &nbsp; *</p>
 
 ## 🧱 Plugins: make the page
