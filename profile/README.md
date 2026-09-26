@@ -10,6 +10,15 @@ A kit of plugins and templates for [EmDash](https://github.com/emdash-cms/emdash
 
 That is the design constraint. Anything in this kit has to be operable from the EmDash admin by a non-technical human without a code change.
 
+## Current focus
+
+A working EmDash e-commerce store that a non-technical human can manage from
+admin. **Commerce and Inventory launch side by side.** Current work connects
+real Commerce Products to the Store Template catalog; checkout is not claimed.
+
+[Vision](https://github.com/dinkuskit/.github/blob/main/VISION.md) ·
+[Roadmap](https://github.com/dinkuskit/.github/blob/main/ROADMAP.md)
+
 <p align="center">* &nbsp; * &nbsp; *</p>
 
 ## 🧱 Plugins: make the page
@@ -19,13 +28,15 @@ That is the design constraint. Anything in this kit has to be operable from the 
 ## 🛒 Plugins: make it sell
 
 - 🛒 [**commerce**](https://github.com/dinkuskit/commerce) — the open-source commerce layer for EmDash sites.
+- 📦 [**inventory**](https://github.com/dinkuskit/inventory) — pools, movements, reservations, and reconciliation.
 - 🎁 [**bundles**](https://github.com/dinkuskit/bundles) — mix-and-match product selection, pricing, inventory, and fulfillment.
 - 🏷️ [**coupons**](https://github.com/dinkuskit/coupons) — advanced promotions, BOGO rules, limits, and migration.
-- 📦 [**inventory**](https://github.com/dinkuskit/inventory) — pools, movements, reservations, and reconciliation.
+
+Advanced promotions and bundles are later candidates, not core launch prerequisites.
 
 ## 🚀 Templates: make it yours
 
-- 🛍️ [**template-store**](https://github.com/dinkuskit/template-store) — a store starter with DinkusKit blocks and AI Commerce.
+- 🛍️ [**template-store**](https://github.com/dinkuskit/template-store) — a store starter with DinkusKit Blocks, Commerce, and Inventory.
 - 🧰 [**template-services**](https://github.com/dinkuskit/template-services) — an Astro starter for service businesses.
 - 📣 [**template-marketing**](https://github.com/dinkuskit/template-marketing) — a lean Astro starter for marketing sites.
 
