@@ -22,7 +22,6 @@ store. Advanced promotions and bundles can follow the core store workflows.
 | --- | --- | --- |
 | [Commerce](https://github.com/dinkuskit/commerce) | Product identity, authoritative prices and sellability, cart, checkout orchestration, orders and Commerce receipts | A second stock ledger |
 | [Inventory](https://github.com/dinkuskit/inventory) | Physical stock truth, explicit pools and locations, reservations, stock movements and immutable receipts | Product pricing, checkout or payments |
-| [Blocks](https://github.com/dinkuskit/blocks) | Reusable, admin-editable page sections and composition | Commerce or Inventory business rules |
 | [Store Template](https://github.com/dinkuskit/template-store) | An integrated storefront and proof of the shop-owner journey | Duplicate product, price or stock authorities |
 | EmDash | CMS, content editing and the human administration framework | DinkusKit's commerce or stock contracts |
 
