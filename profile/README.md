@@ -21,10 +21,6 @@ real Commerce Products to the Store Template catalog; checkout is not claimed.
 
 <p align="center">* &nbsp; * &nbsp; *</p>
 
-## 🧱 Plugins: make the page
-
-- [**blocks**](https://github.com/dinkuskit/blocks) — compose whole pages from mix-and-match sections in the EmDash admin.
-
 ## 🛒 Plugins: make it sell
 
 - 🛒 [**commerce**](https://github.com/dinkuskit/commerce) — the open-source commerce layer for EmDash sites.
