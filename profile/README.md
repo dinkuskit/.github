@@ -4,7 +4,7 @@
 
 > **dinkus** — three stars used as a section break.
 
-A kit of plugins and templates for [EmDash](https://github.com/emdash-cms/emdash) sites. Plugins include editable section blocks and commerce tooling; templates provide complete site starting points. Use one or combine them.
+A kit of plugins, hosted services and templates that turn [EmDash](https://github.com/emdash-cms/emdash) sites into online stores. Plugins install from the EmDash Registry; heavy work runs in hosted DinkusKit services.
 
 > Agents build the code, and it is built so a human can manage it from the admin if need be. An agent may manage it too.
 
@@ -12,9 +12,9 @@ That is the design constraint. Anything in this kit has to be operable from the 
 
 ## Current focus
 
-A working EmDash e-commerce store that a non-technical human can manage from
-admin. **Commerce and Inventory launch side by side.** Current work connects
-real Commerce Products to the Store Template catalog; checkout is not claimed.
+v1: a working EmDash store a non-technical human runs from the admin, from
+listing products to a paid order to a printed USPS label. Current work is the
+first paid test order end to end and USPS labels.
 
 [Vision](https://github.com/dinkuskit/.github/blob/main/VISION.md) ·
 [Roadmap](https://github.com/dinkuskit/.github/blob/main/ROADMAP.md)
@@ -24,18 +24,20 @@ real Commerce Products to the Store Template catalog; checkout is not claimed.
 ## 🛒 Plugins: make it sell
 
 - 🛒 [**commerce**](https://github.com/dinkuskit/commerce) — the open-source commerce layer for EmDash sites.
+- 💳 [**payments**](https://github.com/dinkuskit/payments) — one card processor per store: Stripe or Authorize.net.
+- 📮 [**ship**](https://github.com/dinkuskit/ship) — USPS label purchase and printing.
 - 📦 [**inventory**](https://github.com/dinkuskit/inventory) — pools, movements, reservations, and reconciliation.
 - 🎁 [**bundles**](https://github.com/dinkuskit/bundles) — mix-and-match product selection, pricing, inventory, and fulfillment.
-- 🏷️ [**coupons**](https://github.com/dinkuskit/coupons) — advanced promotions, BOGO rules, limits, and migration.
+- 🏷️ [**coupons**](https://github.com/dinkuskit/coupons) — coupon codes, rules and limits.
 
-Advanced promotions and bundles are later candidates, not core launch prerequisites.
+Inventory and coupons are wanted for v1 but not required; bundles come later.
 
 ## 🚀 Templates: make it yours
 
-- 🛍️ [**template-store**](https://github.com/dinkuskit/template-store) — a store starter with DinkusKit Blocks, Commerce, and Inventory.
+- 🛍️ [**template-store**](https://github.com/dinkuskit/template-store) — a store starter built on DinkusKit Commerce; Payments and Ship join it for v1.
 - 🧰 [**template-services**](https://github.com/dinkuskit/template-services) — an Astro starter for service businesses.
 - 📣 [**template-marketing**](https://github.com/dinkuskit/template-marketing) — a lean Astro starter for marketing sites.
 
 <p align="center">* &nbsp; * &nbsp; *</p>
 
-Under construction and dogfooding in the open. Packages will ship on npm as [`@dinkuskit/*`](https://www.npmjs.com/org/dinkuskit), MIT-licensed.
+Under construction and dogfooding in the open. Plugins will ship on the EmDash Registry, MIT-licensed.
