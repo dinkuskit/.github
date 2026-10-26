@@ -127,3 +127,7 @@ preserves the v1 baseline and explains how work is selected. Neither document
 declares a launch date, release readiness or permission to publish or deploy.
 Product contracts belong to focused decisions in the owning repository;
 [contributor guidance](CONTRIBUTING.md) explains how to raise them.
+
+---
+
+This document is licensed under the [MIT License](LICENSE-DOCUMENTS.md).

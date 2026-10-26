@@ -108,3 +108,7 @@ v1 or a prescribed workflow list.
   than maintaining a second backlog.
 - Publication, deployment, real postage and production changes remain
   separate human gates. This document authorizes none of them.
+
+---
+
+This document is licensed under the [MIT License](LICENSE-DOCUMENTS.md).
