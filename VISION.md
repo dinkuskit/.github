@@ -1,33 +1,53 @@
 # DinkusKit vision
 
-DinkusKit makes [EmDash](https://github.com/emdash-cms/emdash) sites into
-working online stores. Its first product goal is a store that a non-technical
-human can run from the EmDash admin without changing code. Agents use the same
-durable operations wherever a durable route exists; they do not replace the
-human operating surface. Today the EmDash admin is the complete surface, and
-agent routes and command-line tools follow it.
+DinkusKit helps one accountable operator run a business through independently useful, connected tools—with agents doing more of the routine work as reliability and trust grow.
 
-## What success means
+This is a business operating system built around
+[EmDash](https://github.com/emdash-cms/emdash), with commerce as its first
+proving ground. “One operator” means one accountable person directing the
+business, with employees, contractors or agents helping. A business may have
+several stores and websites. Small-business needs guide the initial work;
+there is no fixed company-size ceiling or claim of enterprise readiness.
 
-A shop owner can manage products and prices, accept a purchase, and get a
-physical order to a customer in the United States, with understandable
-results and recovery at every step. Those workflows must work together, not
-merely exist as separate package demonstrations.
+Our own stores provide real operating needs and proof. DinkusKit must also be
+useful to other merchants, whose requests and priorities should inform its
+development. Existing businesses come first, with approachable onboarding for
+new businesses too.
 
-## Shape: small store plugins, hosted services
+## Useful pieces, gradual adoption
 
-Every DinkusKit plugin ships as an EmDash Registry plugin: sandboxed,
-installed from the Registry, and small enough for the Registry's size limits.
-Work that is heavy, shared between stores, or holds processor and carrier
-credentials runs in hosted DinkusKit services that the store plugins call.
-A native (code-registered) entry is a developer and test setup only; any
-feature it has that the Registry build lacks is a listed gap with the work
-that closes it.
+Plugins should be independently useful peers. Commerce is not a mandatory hub
+for every business tool. A merchant should be able to adopt a useful piece,
+keep a working existing system, and change the combination over time.
+Integrations with external providers are deliberate supported capabilities,
+not a promise to connect to every product.
 
-DinkusKit plans against the Registry's size limits as they are today and does
-not depend on them being raised. Inside Commerce, Catalog, Checkout and Orders
-stay separate parts with written handoffs, so Commerce can later split into
-several plugins or grow in place without a rewrite.
+Each responsibility has one authoritative owner, including when that owner is
+an external provider. Neither an agent nor a second plugin silently creates a
+competing source of truth. Partial adoption should provide real value and make
+remaining human work explicit.
+
+The first release remains a working EmDash store that a non-technical human
+can run from the admin: manage products, accept a purchase and fulfill a U.S.
+physical order, with understandable recovery. The broader destination does
+not automatically expand that [v1 scope](ROADMAP.md#v1-store-baseline).
+
+## Packaging and independent operation
+
+Plugins target the EmDash Registry and its actual sandbox and size limits.
+Heavy work, shared operations and provider connections may require separate
+services. Native code-registered entries remain development and test setups;
+capabilities missing from a Registry build must be identified as gaps.
+
+Merchants should have a supported way to operate DinkusKit without depending
+on DinkusKit-operated services. The first self-hosting target is the merchant's
+own Cloudflare account, including separately deployed services where needed.
+Business records, history, knowledge and rules should remain portable,
+including when a merchant leaves DinkusKit.
+
+This is a product requirement, not a claim that complete self-hosting or export
+already works. Packaging, authentication and service connection rules still
+need design and proof against upstream EmDash constraints.
 
 ## Clear ownership
 
@@ -42,13 +62,49 @@ several plugins or grow in place without a rewrite.
 | [Store Template](https://github.com/dinkuskit/template-store) | Starter site | An integrated storefront and proof of the shop-owner journey | Duplicate product, price or stock authorities |
 | EmDash | CMS | Content editing and the human administration framework | DinkusKit's commerce, stock or shipping contracts |
 
-These are responsibility boundaries, not a claim that every listed capability
-is implemented. Repository charters and verified feature documentation describe
-individual contracts and their current status.
+These are existing component responsibility boundaries, not a claim that every
+listed capability is implemented or independently deployable today. Repository
+charters and verified feature documentation describe individual contracts and
+their current status. New capabilities need their own focused decisions;
+marketing, email and shared knowledge do not yet have a settled package split.
+
+## Assistants under the operator's control
+
+Support both optional DinkusKit assistants and merchants' chosen agents and
+models. A primary operator assistant can be an existing harness that calls on
+specialists. Operator, builder and shopper experiences have different purposes;
+the current [DinkusGuide](https://github.com/dinkuskit/dinkus-guide) is a
+read-only documentation guide, not an implemented business operator.
+
+Assistant access starts read-only. Capabilities and approval modes should be
+easy to configure per assistant, per business. First-party assistants receive
+no hidden authority beyond the explicit permissions available through the
+same supported interfaces. Detailed permission models and selector wording
+remain design work.
+
+Keep proactive assistance selective and group related matters. Start with
+quiet in-app notices, let users opt into delivery outside the app, and respect
+quiet hours and notification preferences. Explain the reason for urgency.
+Notification preferences never grant permission to act.
+
+## Knowledge and continuity
+
+Shared business knowledge should be portable and permissioned, with
+business-wide information, site-specific information and explicit authorized
+site overrides. Approved knowledge can become shared records; private
+conversations do not automatically become shared knowledge. Storage, ownership,
+shared APIs and detailed privacy controls remain open design questions.
+
+An approved request should persist until completion or a clearly reported
+blocker, within the authority granted. Build useful capabilities with
+configurable business rules; this does not commit DinkusKit to a fixed workflow
+catalog or a general workflow designer.
 
 ## Operating principles
 
 - Human admin and agent clients use the same durable, permissioned operations.
+- A non-technical human can operate supported capabilities from the admin
+  without changing code; agent routes complement that human surface.
 - A managed product has one stock authority. Missing or unhealthy stock setup
   must not silently become an invented quantity or a fallback ledger.
 - Public storefront facts come from their owning systems, not a second copy in
@@ -60,7 +116,14 @@ individual contracts and their current status.
 
 ## Direction, not a release claim
 
-This document records the durable product goal. The dated [roadmap](ROADMAP.md)
-records v1 scope, current focus and proposed sequencing. Neither document
-declares a launch date, release readiness, or permission to publish or deploy.
-Product contracts still belong to focused decisions in the owning repo.
+Research evidence, accepted designs and active work are distinct. Priority and
+maturity are independent: an important question may need research, and a
+finished design may wait. Experiments can be discarded while their useful
+conclusions are retained. Research informs a concrete decision; feature counts
+or another product's design do not create implementation commitments.
+
+This document records durable product direction. [Scope and planning](ROADMAP.md)
+preserves the v1 baseline and explains how work is selected. Neither document
+declares a launch date, release readiness or permission to publish or deploy.
+Product contracts belong to focused decisions in the owning repository;
+[contributor guidance](CONTRIBUTING.md) explains how to raise them.

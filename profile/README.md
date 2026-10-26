@@ -4,20 +4,17 @@
 
 > **dinkus** — three stars used as a section break.
 
-A kit of plugins, hosted services and templates that turn [EmDash](https://github.com/emdash-cms/emdash) sites into online stores. Plugins install from the EmDash Registry; heavy work runs in hosted DinkusKit services.
+DinkusKit helps one accountable operator run a business through independently useful, connected tools—with agents doing more of the routine work as reliability and trust grow.
 
-> Agents build the code, and it is built so a human can manage it from the admin if need be. An agent may manage it too.
+A kit of open-source plugins, services and templates built around [EmDash](https://github.com/emdash-cms/emdash). Commerce is our first proving ground; the destination is a business operating system. One accountable operator can work with employees, contractors and agents across several sites.
 
-That is the design constraint. Anything in this kit has to be operable from the EmDash admin by a non-technical human without a code change.
+The design constraint: a non-technical human can run the business from the admin, with agents using the same permissioned operations. Adopt useful pieces alongside existing tools, choose your assistant, and keep control of your data and what an agent may do. These are product principles; individual repositories document what is implemented and proven today.
 
 ## Current focus
 
-v1: a working EmDash store a non-technical human runs from the admin, from
-listing products to a paid order to a printed USPS label. Current work is the
-first paid test order end to end and USPS labels.
+v1: a working EmDash store a non-technical human runs from the admin, from listing products to a paid order to a printed USPS label. The broader vision does not add every future capability to that release.
 
-[Vision](https://github.com/dinkuskit/.github/blob/main/VISION.md) ·
-[Roadmap](https://github.com/dinkuskit/.github/blob/main/ROADMAP.md)
+[Vision](https://github.com/dinkuskit/.github/blob/main/VISION.md) · [Scope and planning](https://github.com/dinkuskit/.github/blob/main/ROADMAP.md) · [Contributing](https://github.com/dinkuskit/.github/blob/main/CONTRIBUTING.md)
 
 <p align="center">* &nbsp; * &nbsp; *</p>
 
@@ -30,7 +27,14 @@ first paid test order end to end and USPS labels.
 - 🎁 [**bundles**](https://github.com/dinkuskit/bundles) — mix-and-match product selection, pricing, inventory, and fulfillment.
 - 🏷️ [**coupons**](https://github.com/dinkuskit/coupons) — coupon codes, rules and limits.
 
-Inventory and coupons are wanted for v1 but not required; bundles come later.
+These links describe component responsibilities, not a claim that every feature is released. Inventory and coupons are optional for the v1 baseline; bundles remain a later candidate. Check each repository for current status.
+
+## 🧭 Beyond the storefront
+
+- 🧭 [**DinkusGuide**](https://github.com/dinkuskit/dinkus-guide) — a read-only, source-backed guide to DinkusKit and EmDash.
+- 📚 [**books**](https://github.com/dinkuskit/books) — bookkeeping and reconciliation direction; currently a design stub, not an installable plugin.
+
+We aim for independently useful tools, deliberate integrations, portable business knowledge and a practical path to run the system in your own Cloudflare account. That path, broader business capabilities and agent controls still need design and proof; they are not promises of current availability.
 
 ## 🚀 Templates: make it yours
 
@@ -40,4 +44,4 @@ Inventory and coupons are wanted for v1 but not required; bundles come later.
 
 <p align="center">* &nbsp; * &nbsp; *</p>
 
-Under construction and dogfooding in the open. Plugins will ship on the EmDash Registry, MIT-licensed.
+Under construction and dogfooding in the open. Registry-first plugins, MIT-licensed. Follow each repository's releases and verification notes for availability.
