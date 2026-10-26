@@ -1,10 +1,35 @@
-# DinkusKit roadmap
+# DinkusKit scope and planning
 
-**Current direction: 2026-10-10.** This is the canonical whole-kit roadmap.
-Read the durable [vision](VISION.md) first. Repository roadmaps keep their
-component backlogs; they do not independently reorder the whole kit.
+Read the [vision](VISION.md) for the destination and product principles. This
+file retains the `ROADMAP.md` address for existing links. It records the v1
+store baseline and how work is selected; it is not a dated feature schedule.
 
-## v1 scope
+## How work becomes a commitment
+
+- **Research** answers a specific question with evidence. It may end in an
+  experiment, a recommendation or a question that remains open.
+- **Accepted design** records a product decision. It can remain inactive
+  until there is a reason and capacity to build it.
+- **Active work** has an explicit scope, owner and observable completion
+  criteria in its owning repository.
+
+A high-priority question may still need research. A fully designed capability
+may deliberately wait. Our stores supply the initial operating needs; feedback
+from other merchants also informs priorities. Select work for a useful business
+outcome, its dependencies and the evidence needed to show it works, rather than
+trying to reproduce another product's feature list.
+
+New research normally informs the next relevant decision. It should not
+continually expand a release already underway. If a finding justifies changing
+active work, make the tradeoff and its effect on scope explicit. Unsettled
+questions belong in existing issues or proposals, with one primary record and
+cross-repository links; see [contributing](CONTRIBUTING.md).
+
+## v1 store baseline
+
+This baseline was established on October 10, 2026. The broader business-OS
+direction preserves it; the list below is an acceptance contract, not a claim
+about today's completion status.
 
 v1 is a working EmDash store, installed from the Registry, that a
 non-technical human can run from the admin. It is done when a shop owner can:
@@ -30,94 +55,56 @@ trigger real fulfillment or postage.
 **Proof that v1 works:** a Registry-installed store with current Commerce,
 Payments and Ship takes one paid TEST order, sees it in Orders and in Payments'
 setup, and buys and prints a USPS label in the carrier's test environment,
-all from the admin. Publishing to the Registry, deploying and going live with real payments
-stay separate go-aheads from the owner.
+all from the admin. Publishing to the Registry, deploying and going live with
+real payments stay separate go-aheads from the owner.
 
-**Wanted for v1, not required:** Inventory (managed stock) and basic coupons.
-Both are being built now and ship with v1 if they are proven in time. A store
-without them still launches: products use manual availability, and checkout
-sends no coupon code. Neither may block the four steps above.
+**Optional for this baseline:** Inventory (managed stock) and basic coupons.
+A store without them uses manual availability and sends no coupon code at
+checkout. Neither blocks the four steps above. Inclusion here does not restart
+or prioritize work in either repository.
 
-**After v1:** international shipping and labels, other carriers, live postage
-rates at checkout, weight or zone shipping rates, tax, customer accounts,
-refunds from the admin, bundles and advanced promotions.
+**Outside this baseline:** international shipping and labels, other carriers,
+live postage rates at checkout, weight or zone shipping rates, tax, customer
+accounts, refunds from the admin, bundles and advanced promotions. These remain
+candidate areas, not a promise of their order or inclusion in the next release.
 
-**Size:** v1 must fit the Registry's size limits as they are today (Commerce's
-plugin file is about 119 KB of 128 KiB). Each Commerce addition gets a size
-check; heavy work goes to hosted services.
+v1 must fit the Registry's current size limits. Check the actual build when a
+plugin changes; an old bundle-size measurement is not present-day proof.
 
-There is no launch date or release-readiness claim here.
+## Current implementation status
 
-## Now
+Use the owning repositories' documentation, releases and verification evidence:
 
-- **One paid TEST order, end to end.** Needs a deployed test-mode Payments
-  service and its status address, Stripe test keys and webhook, the Accounts
-  service and consent page (so Payments' "Connect payments" step can finish),
-  and the Payments-to-Commerce check that exactly one paid TEST order exists.
-- **Commerce order handoff for Ship.** A stable store and order identity, an
-  order revision, and a fulfillment status (shipped, tracking number) that is
-  set by hand or by a Ship label. Commerce sends each paid order to the
-  hosted Ship service, since EmDash plugins cannot call each other.
-- **USPS labels on Registry installs.** A hosted Ship service holding the
-  merchant's own Pitney Bowes connection; a way for a Registry plugin to show
-  and print a label (not designed yet); refuse postage for TEST orders.
-- **Store Template checkout.** Move to Registry-installed Commerce, send the
-  delivery address for physical items, send no coupon code until coupons are
-  proven, and run the demo on current Commerce.
-- **Deploy readiness.** Payments, Ship and Accounts services, plus Accounts
-  passes for Ship, prepared for a first deploy. Deploying waits for the
-  owner's go.
+- [Commerce](https://github.com/dinkuskit/commerce)
+- [Payments](https://github.com/dinkuskit/payments)
+- [Ship](https://github.com/dinkuskit/ship)
+- [Store Template](https://github.com/dinkuskit/template-store)
+- [Accounts and hosted service connections](https://github.com/dinkuskit/dinkuskit)
+- [Inventory](https://github.com/dinkuskit/inventory) and [Coupons](https://github.com/dinkuskit/coupons)
 
-Inventory and Coupons continue alongside without blocking the items above.
-Coupons still need their service deployed, Accounts passes for Coupons, and a
-coupon box in the Store Template that shows the refusal reason and lets the
-shopper drop the code.
+The October 10 `Now`, `Done` and deployment snapshot previously in this file
+are historical, not current status. They remain available in Git history;
+duplicating them here would obscure the owning repositories' newer evidence.
+Open PRs and merged code alone do not establish published or deployed behavior.
 
-## Open platform question
+## Decisions still to make
 
-EmDash's Registry caps each plugin file at 128 KiB. A larger limit has been
-asked for, with benchmarks. v1 is planned to ship under the current limit, and
-nothing in Now waits on that answer. Sharing data between plugins through
-content saves works but is not planned for v1; a direct plugin-to-plugin call
-needs upstream EmDash work and comes later.
-
-## Done
-
-- Products drive the Store Template catalog: Regular and Sale prices, hide
-  without delete (2026-09-30).
-- Registry-first rule for every plugin (2026-10-08).
-- Commerce guest checkout with coupon checks and specific refusal reasons,
-  delivery address for physical baskets (works once a storefront sends it),
-  and an Orders page that keeps its own copy of each paid order. Hosted stores
-  get the coupon reasons once the pending coupon-service update lands.
-- Payments' Registry setup plugin on the shared store identity.
-- Command-line tools for Commerce, Coupons, Inventory and Payments, run from
-  a checkout and not yet published. On a Registry store the Commerce tool can
-  only read the catalog, and the others need Accounts, which is not deployed.
-- Google and Meta product feeds.
-- Hosted coupon service and Coupons admin plugin; Inventory plugin under the
-  Registry size limit.
-
-Code merged is not the same as proven: none of this is published to the
-Registry or deployed yet.
+The [vision](VISION.md) sets direction for independent plugins, portable
+knowledge, optional assistants and operation in a merchant's own Cloudflare
+account. Packaging and authentication for self-hosting, shared knowledge
+storage, detailed agent permissions, and the boundaries of marketing or email
+capabilities still need focused decisions and proof. They are not additions to
+v1 or a prescribed workflow list.
 
 ## Evidence and status discipline
 
-- Distinguish a locked decision, an implemented kernel, an admin workflow and
-  a proven integrated store. None is a substitute for the next.
+- Distinguish a locked decision, implemented code, an admin capability and a
+  proven integrated result. None is a substitute for the next.
 - Record exact source/dependency pins and sanitized evidence. UI work needs
   admin and public proof, including desktop/mobile where relevant.
 - Verify initialized-state upgrades, durable read-back and failure recovery
   when a slice changes persistence or operation semantics.
-- Each repository's own status section is the live implementation record.
-  Open PRs are not shipped work.
+- Keep implementation status in the owning repository and link it here rather
+  than maintaining a second backlog.
 - Publication, deployment, real postage and production changes remain
-  separate human gates. This roadmap authorizes none of them.
-
-## Snapshot basis
-
-Checked default branches on 2026-10-10. Commerce has guest checkout, paid-order
-records and delivery addresses on main; Payments has a Registry setup plugin
-and a test-mode service; Ship has a private installed label workflow with
-offline fixtures and no live provider; the demo runs with Inventory off and
-an older Commerce. Update this dated roadmap when the direction changes.
+  separate human gates. This document authorizes none of them.
