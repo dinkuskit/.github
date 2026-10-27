@@ -2,6 +2,8 @@
 
 DinkusKit helps one accountable operator run a business through independently useful, connected tools—with agents doing more of the routine work as reliability and trust grow.
 
+DinkusKit helps an accountable owner delegate business operations to people and agents without losing visibility or control.
+
 This is a business operating system built around
 [EmDash](https://github.com/emdash-cms/emdash), with commerce as its first
 proving ground. “One operator” means one accountable person directing the
