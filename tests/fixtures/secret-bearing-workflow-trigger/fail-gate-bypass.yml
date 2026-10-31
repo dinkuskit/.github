@@ -1,0 +1,31 @@
+name: Secret-bearing job can bypass the gate with a disjunction
+
+on:
+  pull_request_target:
+
+permissions: {}
+
+jobs:
+  permission-gate:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Require write permission
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.triggering_actor }}
+        run: |
+          permission="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "allowed=$([ "$permission" = write ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  preview:
+    needs: permission-gate
+    if: needs.permission-gate.outputs.allowed == 'true' || contains(github.event.pull_request.labels.*.name, 'preview')
+    uses: dinkuskit/commerce/.github/workflows/preview.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets: inherit
