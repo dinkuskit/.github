@@ -44,21 +44,23 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Check out pin-audit guard
-        uses: actions/checkout@v4
+        if: github.repository != 'dinkuskit/.github'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: dinkuskit/.github
-          ref: ${{ inputs.guard-ref || github.sha }}
+          ref: ${{ inputs.guard-ref }}
           path: .pin-audit-guard
           persist-credentials: false
       - name: Check out reviewed-pins manifest
-        uses: actions/checkout@v4
+        if: github.repository != 'dinkuskit/.github'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: dinkuskit/.github
-          ref: ${{ inputs.manifest-ref || github.sha }}
+          ref: ${{ inputs.manifest-ref }}
           path: .pin-audit-manifest
           sparse-checkout: reviewed-pins.json
           sparse-checkout-cone-mode: false
@@ -66,13 +68,15 @@ jobs:
       - name: Require every pinned SHA to be reviewed
         env:
           PIN_AUDIT_FETCH_TOKEN: ${{ secrets.fetch-token }}
+          GUARD_ROOT: ${{ github.repository == 'dinkuskit/.github' && '.' || '.pin-audit-guard' }}
+          MANIFEST_PATH: ${{ github.repository == 'dinkuskit/.github' && 'reviewed-pins.json' || '.pin-audit-manifest/reviewed-pins.json' }}
         run: >-
-          ruby .pin-audit-guard/scripts/pin_audit.rb
-          --manifest .pin-audit-manifest/reviewed-pins.json
+          ruby "$GUARD_ROOT/scripts/pin_audit.rb"
+          --manifest "$MANIFEST_PATH"
           --diff-dir "$RUNNER_TEMP/pin-audit-source-diffs"
       - name: Upload fetched source diffs
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: pin-audit-source-diffs
           path: ${{ runner.temp }}/pin-audit-source-diffs
@@ -85,7 +89,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Test pin-audit fixtures
