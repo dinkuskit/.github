@@ -1,0 +1,16 @@
+name: Reviewed pins
+on: pull_request
+permissions: {}
+jobs:
+  lint:
+    uses: dinkuskit/.github/.github/workflows/pin-audit.yml@1111111111111111111111111111111111111111
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@2222222222222222222222222222222222222222
+      - uses: Actions/Checkout@2222222222222222222222222222222222222222
+      - uses: actions/checkout@2222222222222222222222222222222222222222
+        with:
+          repository: DinkusKit/skills
+          ref: 3333333333333333333333333333333333333333
+          path: skills

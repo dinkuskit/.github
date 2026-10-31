@@ -1,0 +1,12 @@
+name: Unreviewed skill checkout
+on: pull_request
+permissions: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: dinkuskit/skills
+          ref: 1111111111111111111111111111111111111111
+          path: skills

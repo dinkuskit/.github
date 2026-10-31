@@ -1,0 +1,6 @@
+name: Unreviewed reusable workflow
+on: pull_request
+permissions: {}
+jobs:
+  lint:
+    uses: dinkuskit/.github/.github/workflows/pin-audit.yml@4444444444444444444444444444444444444444

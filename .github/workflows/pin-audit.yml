@@ -1,0 +1,96 @@
+name: Pin audit
+
+# Shared by dinkuskit repositories as a reusable workflow:
+#
+#   jobs:
+#     pin-audit:
+#       uses: dinkuskit/.github/.github/workflows/pin-audit.yml@<sha>
+#       with:
+#         guard-ref: <same sha>
+#
+# Every external reusable workflow, action, skill or runtime the caller pins
+# to a commit SHA (`uses: owner/repo@<sha>`, or a checkout of another
+# repository at `ref: <sha>`) must be listed in reviewed-pins.json on
+# dinkuskit/.github main. Unreviewed pins fail the job, and the fetched source
+# diff for each is uploaded as the `pin-audit-source-diffs` artifact.
+
+on:
+  workflow_call:
+    inputs:
+      guard-ref:
+        description: dinkuskit/.github ref providing the guard script; pin it to the same ref as this workflow
+        required: false
+        type: string
+        default: main
+      manifest-ref:
+        description: dinkuskit/.github ref providing reviewed-pins.json
+        required: false
+        type: string
+        default: main
+    secrets:
+      fetch-token:
+        description: Optional read token for fetching private pinned sources
+        required: false
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  pin-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Check out pin-audit guard
+        if: github.repository != 'dinkuskit/.github'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: dinkuskit/.github
+          ref: ${{ inputs.guard-ref }}
+          path: .pin-audit-guard
+          persist-credentials: false
+      - name: Check out reviewed-pins manifest
+        if: github.repository != 'dinkuskit/.github'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          repository: dinkuskit/.github
+          ref: ${{ inputs.manifest-ref }}
+          path: .pin-audit-manifest
+          sparse-checkout: reviewed-pins.json
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+      - name: Require every pinned SHA to be reviewed
+        env:
+          PIN_AUDIT_FETCH_TOKEN: ${{ secrets.fetch-token }}
+          GUARD_ROOT: ${{ github.repository == 'dinkuskit/.github' && '.' || '.pin-audit-guard' }}
+          MANIFEST_PATH: ${{ github.repository == 'dinkuskit/.github' && 'reviewed-pins.json' || '.pin-audit-manifest/reviewed-pins.json' }}
+        run: >-
+          ruby "$GUARD_ROOT/scripts/pin_audit.rb"
+          --manifest "$MANIFEST_PATH"
+          --diff-dir "$RUNNER_TEMP/pin-audit-source-diffs"
+      - name: Upload fetched source diffs
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pin-audit-source-diffs
+          path: ${{ runner.temp }}/pin-audit-source-diffs
+          if-no-files-found: ignore
+
+  guard-tests:
+    if: github.repository == 'dinkuskit/.github'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Test pin-audit fixtures
+        run: ruby tests/test_pin_audit.rb

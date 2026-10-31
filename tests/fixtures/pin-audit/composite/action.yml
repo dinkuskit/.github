@@ -1,0 +1,5 @@
+name: Unreviewed runtime in composite action
+runs:
+  using: composite
+  steps:
+    - uses: dinkuskit/runtime/setup@6666666666666666666666666666666666666666
