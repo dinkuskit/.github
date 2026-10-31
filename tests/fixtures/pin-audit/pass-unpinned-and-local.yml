@@ -1,0 +1,20 @@
+name: Not pins
+on: pull_request
+permissions: {}
+jobs:
+  local:
+    uses: ./.github/workflows/local.yml
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - uses: docker://alpine:3.20
+      - uses: actions/checkout@v4
+        with:
+          repository: dinkuskit/runtime
+          ref: ${{ github.sha }}
+      - uses: actions/checkout@v4
+        with:
+          repository: dinkuskit/runtime
+          ref: main

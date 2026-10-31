@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "pins": [
+    { "repository": "dinkuskit/.github", "sha": "1111111111111111111111111111111111111111", "review": "https://github.com/dinkuskit/.github/pull/1" },
+    { "repository": "actions/checkout", "sha": "2222222222222222222222222222222222222222", "review": "https://github.com/dinkuskit/.github/pull/2" },
+    { "repository": "dinkuskit/skills", "sha": "3333333333333333333333333333333333333333", "review": "https://github.com/dinkuskit/.github/pull/3" }
+  ]
+}
