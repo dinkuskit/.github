@@ -1,0 +1,30 @@
+name: Secret-bearing job needs the gate but does not require its output
+
+on:
+  pull_request_target:
+
+permissions: {}
+
+jobs:
+  permission-gate:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Record permission without failing
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.triggering_actor }}
+        run: |
+          permission="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "allowed=$([ "$permission" = write ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  preview:
+    needs: permission-gate
+    uses: dinkuskit/payments/.github/workflows/preview.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets: inherit

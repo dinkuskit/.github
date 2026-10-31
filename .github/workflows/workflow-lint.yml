@@ -1,0 +1,80 @@
+name: Workflow lint
+
+# Shared by dinkuskit repositories as a reusable workflow:
+#
+#   jobs:
+#     workflow-lint:
+#       uses: dinkuskit/.github/.github/workflows/workflow-lint.yml@<sha>
+#       with:
+#         guard-ref: <same sha>
+#
+# zizmor audits the caller's workflows. actionlint checks them, and the
+# secret-bearing-workflow-trigger rule fails when a pull_request_target or
+# issue_comment job passes secrets to a reusable workflow without needing a
+# permission-gate job whose output its `if` requires.
+
+on:
+  workflow_call:
+    inputs:
+      guard-ref:
+        description: dinkuskit/.github ref providing the guard script; pin it to the same ref as this workflow
+        required: false
+        type: string
+        default: main
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run zizmor
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: pipx run --spec 'zizmor==1.11.0' zizmor .github/workflows
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check out workflow guard
+        uses: actions/checkout@v4
+        with:
+          repository: dinkuskit/.github
+          ref: ${{ inputs.guard-ref || github.sha }}
+          path: .workflow-lint-guard
+          persist-credentials: false
+      - name: Install actionlint
+        run: go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+      - name: Run actionlint
+        run: '"$(go env GOPATH)/bin/actionlint"'
+      - name: Require a permission gate before secret-bearing reusable workflows
+        if: ${{ !cancelled() }}
+        run: ruby .workflow-lint-guard/scripts/secret_bearing_workflow_trigger.rb
+
+  guard-tests:
+    if: github.repository == 'dinkuskit/.github'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test secret-bearing-workflow-trigger fixtures
+        run: ruby tests/test_secret_bearing_workflow_trigger.rb

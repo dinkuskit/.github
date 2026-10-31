@@ -1,0 +1,42 @@
+name: Gated pull_request_target deploy preview
+
+on:
+  pull_request_target:
+    types: [opened, synchronize]
+
+permissions: {}
+
+jobs:
+  permission-gate:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Require write permission for the triggering actor
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.triggering_actor }}
+        run: |
+          set -euo pipefail
+          permission="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          case "$permission" in
+            admin|maintain|write)
+              echo "allowed=true" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "allowed=false" >> "$GITHUB_OUTPUT"
+              echo "::error::${ACTOR} has ${permission} permission; write is required"
+              exit 1
+              ;;
+          esac
+
+  preview:
+    needs: permission-gate
+    if: needs.permission-gate.outputs.allowed == 'true'
+    uses: dinkuskit/payments/.github/workflows/preview.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets: inherit

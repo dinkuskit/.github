@@ -1,0 +1,29 @@
+name: Gate exists but the secret-bearing job does not need it
+
+on: [issue_comment]
+
+permissions: {}
+
+jobs:
+  permission-gate:
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      allowed: ${{ steps.gate.outputs.allowed }}
+    steps:
+      - name: Require write permission
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.triggering_actor }}
+        run: |
+          permission="$(gh api "repos/${REPO}/collaborators/${ACTOR}/permission" --jq .permission)"
+          echo "allowed=$([ "$permission" = write ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+  command:
+    uses: dinkuskit/inventory/.github/workflows/command.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets:
+      INVENTORY_TOKEN: ${{ secrets.INVENTORY_TOKEN }}

@@ -1,0 +1,12 @@
+name: Ungated pull_request_target
+
+on: pull_request_target
+
+permissions: {}
+
+jobs:
+  preview:
+    uses: dinkuskit/template-store/.github/workflows/preview.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets: inherit

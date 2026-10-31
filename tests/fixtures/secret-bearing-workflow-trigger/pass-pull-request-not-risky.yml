@@ -1,0 +1,13 @@
+name: pull_request runs without base-repository secrets for forks
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  build:
+    uses: dinkuskit/inventory/.github/workflows/build.yml@0123456789abcdef0123456789abcdef01234567
+    permissions:
+      contents: read
+    secrets: inherit
