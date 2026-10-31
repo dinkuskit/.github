@@ -34,7 +34,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Run zizmor
@@ -48,14 +48,15 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Check out workflow guard
-        uses: actions/checkout@v4
+        if: github.repository != 'dinkuskit/.github'
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: dinkuskit/.github
-          ref: ${{ inputs.guard-ref || github.sha }}
+          ref: ${{ inputs.guard-ref }}
           path: .workflow-lint-guard
           persist-credentials: false
       - name: Install actionlint
@@ -64,7 +65,9 @@ jobs:
         run: '"$(go env GOPATH)/bin/actionlint"'
       - name: Require a permission gate before secret-bearing reusable workflows
         if: ${{ !cancelled() }}
-        run: ruby .workflow-lint-guard/scripts/secret_bearing_workflow_trigger.rb
+        env:
+          GUARD_ROOT: ${{ github.repository == 'dinkuskit/.github' && '.' || '.workflow-lint-guard' }}
+        run: ruby "$GUARD_ROOT/scripts/secret_bearing_workflow_trigger.rb"
 
   guard-tests:
     if: github.repository == 'dinkuskit/.github'
@@ -73,7 +76,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
       - name: Test secret-bearing-workflow-trigger fixtures
