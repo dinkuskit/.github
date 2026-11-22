@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 250" width="980" height="250" font-family="ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace">
+  <defs>
+    <marker id="arrow-light" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#065F46"/>
+    </marker>
+    <marker id="arrow-muted-light" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#7E22CE"/>
+    </marker>
+  </defs>
+
+  <rect x="1" y="1" width="978" height="248" rx="14" fill="#F9FAF8" stroke="#E2E6E3" stroke-width="1.5"/>
+  <text x="24" y="30" fill="#7E22CE" font-size="11" font-weight="700" letter-spacing="1.8">DINKUSKIT // HOW THE KIT FITS AROUND EMDASH</text>
+
+  <!-- Column 1: Operator + Agents -->
+  <rect x="24" y="52" width="208" height="156" rx="10" fill="#FFFFFF" stroke="#7E22CE" stroke-width="1.5"/>
+  <text x="128" y="78" text-anchor="middle" fill="#7E22CE" font-size="13" font-weight="700">Operator + Agents</text>
+  <text x="128" y="102" text-anchor="middle" fill="#131718" font-size="11">One Accountable Owner</text>
+  <text x="128" y="124" text-anchor="middle" fill="#4E5856" font-size="10">EmDash Admin (human)</text>
+  <text x="128" y="143" text-anchor="middle" fill="#4E5856" font-size="10">OpenClaw · Pi Durable</text>
+  <text x="128" y="162" text-anchor="middle" fill="#4E5856" font-size="10">CLI &amp; MCP Contracts</text>
+  <text x="128" y="192" text-anchor="middle" fill="#6B7573" font-size="9.5">Same permissioned ops</text>
+
+  <line x1="232" y1="130" x2="260" y2="130" stroke="#065F46" stroke-width="2" marker-end="url(#arrow-light)"/>
+
+  <!-- Column 2: EmDash Site -->
+  <rect x="266" y="52" width="208" height="156" rx="10" fill="#FFFFFF" stroke="#065F46" stroke-width="1.5"/>
+  <text x="370" y="78" text-anchor="middle" fill="#065F46" font-size="13" font-weight="700">Your EmDash Site</text>
+  <text x="370" y="102" text-anchor="middle" fill="#131718" font-size="11">Astro + Cloudflare</text>
+  <text x="370" y="124" text-anchor="middle" fill="#4E5856" font-size="10">template-store</text>
+  <text x="370" y="143" text-anchor="middle" fill="#4E5856" font-size="10">template-services</text>
+  <text x="370" y="162" text-anchor="middle" fill="#4E5856" font-size="10">template-marketing</text>
+  <text x="370" y="192" text-anchor="middle" fill="#6B7573" font-size="9.5">You keep site &amp; data</text>
+
+  <line x1="474" y1="130" x2="502" y2="130" stroke="#065F46" stroke-width="2" marker-end="url(#arrow-light)"/>
+
+  <!-- Column 3: v1 Store Baseline -->
+  <rect x="508" y="52" width="208" height="156" rx="10" fill="#FFFFFF" stroke="#0284C7" stroke-width="1.5"/>
+  <text x="612" y="78" text-anchor="middle" fill="#0284C7" font-size="13" font-weight="700">v1 Store Baseline</text>
+  <text x="612" y="102" text-anchor="middle" fill="#131718" font-size="11">Registry-First Core</text>
+  <text x="612" y="124" text-anchor="middle" fill="#4E5856" font-size="10">commerce (catalog/orders)</text>
+  <text x="612" y="143" text-anchor="middle" fill="#4E5856" font-size="10">payments (Stripe/Auth.net)</text>
+  <text x="612" y="162" text-anchor="middle" fill="#4E5856" font-size="10">ship (USPS labels/print)</text>
+  <text x="612" y="192" text-anchor="middle" fill="#6B7573" font-size="9.5">Paid order to printed label</text>
+
+  <line x1="716" y1="130" x2="744" y2="130" stroke="#7E22CE" stroke-width="2" stroke-dasharray="4 3" marker-end="url(#arrow-muted-light)"/>
+
+  <!-- Column 4: Modular Extensions -->
+  <rect x="750" y="52" width="206" height="156" rx="10" fill="#FFFFFF" stroke="#D97706" stroke-width="1.5"/>
+  <text x="853" y="78" text-anchor="middle" fill="#B45309" font-size="13" font-weight="700">Modular Kit &amp; Ops</text>
+  <text x="853" y="102" text-anchor="middle" fill="#131718" font-size="11">Optional &amp; Scaffolds</text>
+  <text x="853" y="124" text-anchor="middle" fill="#4E5856" font-size="10">accounts · reviews</text>
+  <text x="853" y="143" text-anchor="middle" fill="#4E5856" font-size="10">inventory · coupons · bundles</text>
+  <text x="853" y="162" text-anchor="middle" fill="#4E5856" font-size="10">dinkus-guide · books</text>
+  <text x="853" y="192" text-anchor="middle" fill="#6B7573" font-size="9.5">Adopt pieces as needed</text>
+
+  <text x="24" y="232" fill="#6B7573" font-size="10">Independently useful peers · One authoritative owner per responsibility · Registry-first plugins, MIT-licensed</text>
+</svg>
